@@ -8,7 +8,7 @@ namespace net = boost::asio;
 
 class BroadcastManager {
     public:
-        std::atomic<bool> stop_flag{false};
+        std::atomic<bool> stop_flag{false};//使用原子变量控制线程停止
 
         void broadcast_sender(const short port)const{
             try {

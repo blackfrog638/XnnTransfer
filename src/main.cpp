@@ -1,20 +1,14 @@
 #include <iostream>
 #include <thread>
-#include "core/broadcast/broadcast_manager.hpp"
+#include "core/filesender_manager.hpp"
 
 const short PORT = 8888;
 
 int main(){
-    BroadcastManager bm;
-
-    std::thread sender_thread([&bm]() { bm.broadcast_sender(PORT); });
-    std::thread receiver_thread([&bm]() { bm.broadcast_receiver(PORT); });
-
-    std::cin.get();
-    bm.stop_flag = true;
-
-    sender_thread.join();
-    receiver_thread.join();
-    
+    std::cout<<"Starting broadcast sender and receiver..."<<std::endl;
+    FilesenderManager fm(PORT);
+    std::thread broadcast_thread([&fm]() { fm.run_broadcast(); });
+    std::cout<<"Press Enter to stop broadcast..."<<std::endl;
+    broadcast_thread.join();
     return 0;
 }
