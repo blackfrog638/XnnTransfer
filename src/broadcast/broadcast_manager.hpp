@@ -2,13 +2,17 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <algorithm>
 #include <boost/asio.hpp>
 
 namespace net = boost::asio;
 
 class BroadcastManager {
     public:
+        std::string name;
         std::atomic<bool> stop_flag{false};//使用原子变量控制线程停止
+
+        explicit BroadcastManager(std::string name) : name(std::move(name)){};
 
         void broadcast_sender(const short port)const{
             try {
@@ -19,18 +23,31 @@ class BroadcastManager {
                 const auto broadcast_ep = net::ip::udp::endpoint(
                     net::ip::address_v4::broadcast(), port);
                 
-                int counter = 0;
                 while(!stop_flag){
-                    std::string msg = "broadcasting #" + std::to_string(counter++);
+                    std::string msg = "name: " + name + " ip: " + net::ip::host_name();
                     socket.send_to(net::buffer(msg), broadcast_ep);
-                    std::this_thread::sleep_for(std::chrono::seconds(2));
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
                 }
             } catch(std::exception &e){
                 std::cerr<<"An error has occurred: "<<e.what()<<std::endl;
             }
         }
+
+        void broadcast_receiver(const short port)const{
+            while(!stop_flag){
+                auto received_messages = receiver_list(port);
+                if(!received_messages.empty()){
+                    std::cout << "Received messages: " << std::endl;
+                    for(const auto& message : received_messages){
+                        std::cout << message << std::endl;
+                    }
+                }
+            }
+        }
         
-        void broadcast_receiver(const short port)const {
+    private:
+        std::vector<std::string> receiver_list(const short port)const {
+            std::vector<std::string> received_messages;
             try {
                 net::io_context io;
                 net::ip::udp::socket socket(io, 
@@ -39,16 +56,27 @@ class BroadcastManager {
                 const size_t buffer_size = 1024;
                 std::vector<char> buffer(buffer_size);
                 net::ip::udp::endpoint remote_ep;
-        
+                //获取当时始终，限时3秒刷新一次
+                auto clock_start = std::chrono::high_resolution_clock::now();
+
                 while(!stop_flag){
                     size_t len = socket.receive_from(net::buffer(buffer), remote_ep);
                     std::string message(buffer.begin(), buffer.begin() + (int)len);
-                    std::cout<<"Received ["<<remote_ep<<"]: "
-                            << message<<std::endl;
+
+                    if(!std::count(received_messages.begin(), received_messages.end(), message)){
+                        received_messages.push_back(message);
+                    }
+
+                    auto clock_end = std::chrono::high_resolution_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(clock_end - clock_start).count();
+                    if(elapsed > 3){
+                        break;
+                    }
                 }
             }
             catch (const std::exception &e){
                 std::cerr<<"Receiver error: " << e.what() << std::endl;
             }
+            return received_messages;
         }     
 };
