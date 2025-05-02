@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "../broadcast/broadcast_manager.hpp"
+#include "../authentication/authenticator.hpp"
 
 class FilesenderManager {
     public:
@@ -15,7 +16,9 @@ class FilesenderManager {
         std::string ip_address;
         short port;
 
+        Authenticator authenticator;
         BroadcastManager broadcast_manager;
+
         FilesenderManager(std::string name, std::string password,
                           const short port) :
             name(name),
@@ -32,7 +35,12 @@ class FilesenderManager {
             std::thread sender_thread([&]() { broadcast_manager.broadcast_sender(port); });
             std::thread receiver_thread([&]() { broadcast_manager.broadcast_receiver(port); });
             //!TODO: 得到链接之后结束广播
-            std::cin.get();
+            while(1){
+                if(broadcast_manager.stop_flag){
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
             broadcast_manager.stop_flag = true;
 
             sender_thread.join();

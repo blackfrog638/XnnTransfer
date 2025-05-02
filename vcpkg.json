@@ -1,6 +1,7 @@
 {
   "name": "asio-demo",
   "dependencies": [
-    "boost-asio"
+    "boost-asio",
+    "boost-serialization"
   ]
 }
