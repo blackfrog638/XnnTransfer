@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <string>
@@ -24,10 +26,10 @@ class Account {
         template<class Archive>
         void serialize(Archive& ar, const unsigned int version) {
             ar & name;
-            ar & ip;
+            //ar & ip;
             ar & password;  
             //!TODO: 密码加密
-            ar & port;
+            //ar & port;
         }
 
     private:

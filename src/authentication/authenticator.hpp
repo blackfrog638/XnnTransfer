@@ -1,7 +1,9 @@
+#pragma once
+
 #include <filesystem>
 #include <iostream>
 #include <fstream>
-#include "profile.hpp"
+#include "../authentication/profile.hpp"
 
 class Authenticator {
     constexpr static const char* PROFILE_PATH = "profile.txt";
@@ -50,8 +52,7 @@ class Authenticator {
             }
         }
 
-    private:
-        static Account get_profile(){
+        Account get_profile(){
             std::ifstream ifs(PROFILE_PATH);
             boost::archive::text_iarchive ia(ifs);
 
@@ -59,4 +60,7 @@ class Authenticator {
             ia >> account;
             return account;
         }
+
+    private:
+        
 };

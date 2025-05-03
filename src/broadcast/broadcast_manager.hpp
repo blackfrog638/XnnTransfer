@@ -3,16 +3,17 @@
 #include <thread>
 #include <atomic>
 #include <algorithm>
+
 #include <boost/asio.hpp>
+
+#include "../authentication/profile.hpp"
 
 namespace net = boost::asio;
 
 class BroadcastManager {
     public:
-        std::string name;
+        Account account;
         std::atomic<bool> stop_flag{false};//使用原子变量控制线程停止
-
-        explicit BroadcastManager(std::string name) : name(std::move(name)){};
 
         void broadcast_sender(const short port)const{
             try {
@@ -24,7 +25,7 @@ class BroadcastManager {
                     net::ip::address_v4::broadcast(), port);
                 
                 while(!stop_flag){
-                    std::string msg = "name: " + name + " ip: " + net::ip::host_name();
+                    std::string msg = "name: " + account.name + " ip: " + net::ip::host_name();
                     socket.send_to(net::buffer(msg), broadcast_ep);
                     std::this_thread::sleep_for(std::chrono::seconds(1));
                 }
@@ -46,6 +47,7 @@ class BroadcastManager {
         }
         
     private:
+        //!TODO: 改变返回类型
         std::vector<std::string> receiver_list(const short port)const {
             std::vector<std::string> received_messages;
             try {
