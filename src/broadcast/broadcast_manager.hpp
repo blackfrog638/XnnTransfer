@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <atomic>
@@ -15,7 +16,7 @@ class BroadcastManager {
         Account account;
         std::atomic<bool> stop_flag{false};//使用原子变量控制线程停止
 
-        void broadcast_sender(const short port)const{
+        void broadcast_sender(const short port){
             try {
                 net::io_context io;
                 net::ip::udp::socket socket(io, net::ip::udp::v4());
@@ -24,9 +25,17 @@ class BroadcastManager {
                 const auto broadcast_ep = net::ip::udp::endpoint(
                     net::ip::address_v4::broadcast(), port);
                 
+                std::string new_ip = broadcast_ep.address().to_string();
+                account.ip = new_ip;
+
                 while(!stop_flag){
-                    std::string msg = "name: " + account.name + " ip: " + net::ip::host_name();
-                    socket.send_to(net::buffer(msg), broadcast_ep);
+
+                    std::ostringstream oss;
+                    boost::archive::text_oarchive oa(oss);
+                    oa << account;
+                    std::string serialized_account = oss.str();
+
+                    socket.send_to(net::buffer(serialized_account), broadcast_ep);
                     std::this_thread::sleep_for(std::chrono::seconds(1));
                 }
             } catch(std::exception &e){
@@ -40,7 +49,8 @@ class BroadcastManager {
                 if(!received_messages.empty()){
                     std::cout << "Received messages: " << std::endl;
                     for(const auto& message : received_messages){
-                        std::cout << message << std::endl;
+                        std::cout << "name:" << message.name << " ip:" << message.ip
+                                  << " port:" << message.port << std::endl;
                     }
                 }
             }
@@ -48,25 +58,31 @@ class BroadcastManager {
         
     private:
         //!TODO: 改变返回类型
-        std::vector<std::string> receiver_list(const short port)const {
-            std::vector<std::string> received_messages;
+        std::vector<Account> receiver_list(const short port)const {
+            std::vector<Account> received_messages;
             try {
                 net::io_context io;
                 net::ip::udp::socket socket(io, 
                     net::ip::udp::endpoint(net::ip::udp::v4(), port));
                 
                 const size_t buffer_size = 1024;
+                std::string serialized_str;
                 std::vector<char> buffer(buffer_size);
                 net::ip::udp::endpoint remote_ep;
-                //获取当时始终，限时3秒刷新一次
+                //获取当时时钟，限时3秒刷新一次
                 auto clock_start = std::chrono::high_resolution_clock::now();
 
                 while(!stop_flag){
                     size_t len = socket.receive_from(net::buffer(buffer), remote_ep);
-                    std::string message(buffer.begin(), buffer.begin() + (int)len);
+                    std::string serialized_str(buffer.begin(), buffer.begin() + (int)len);
 
-                    if(!std::count(received_messages.begin(), received_messages.end(), message)){
-                        received_messages.push_back(message);
+                    std::istringstream iss(serialized_str);
+                    boost::archive::text_iarchive ia(iss);
+                    Account received_data;
+                    ia >> received_data;
+
+                    if(!std::count(received_messages.begin(), received_messages.end(), received_data)){
+                        received_messages.push_back(received_data);
                     }
 
                     auto clock_end = std::chrono::high_resolution_clock::now();

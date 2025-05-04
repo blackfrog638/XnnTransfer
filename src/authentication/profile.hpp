@@ -26,10 +26,10 @@ class Account {
         template<class Archive>
         void serialize(Archive& ar, const unsigned int version) {
             ar & name;
-            //ar & ip;
-            ar & password;  
+            ar & password;
+            ar & ip;
             //!TODO: 密码加密
-            //ar & port;
+            ar & port;
         }
 
     private:
