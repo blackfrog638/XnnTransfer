@@ -4,6 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <algorithm>
+#include <vector>
 
 #include <boost/asio.hpp>
 
