@@ -12,19 +12,13 @@ class Account {
         short port = 0;
 
         Account() = default;
-        Account(std::string name, std::string password) : 
-            name(std::move(name)), password(std::move(password)){}
+        Account(std::string name, std::string password);
 
-        bool operator==(const Account& other) const {
-            return name == other.name && password == other.password && ip == other.ip && port == other.port;
-        }
-        bool operator!=(const Account& other) const {
-            return !(*this == other);
-        }
-
+        bool operator==(const Account& other) const;
+        bool operator!=(const Account& other) const;
         
         template<class Archive>
-        void serialize(Archive& ar, const unsigned int version) {
+        void serialize(Archive& ar, unsigned int version) {
             ar & name;
             ar & password;
             ar & ip;
