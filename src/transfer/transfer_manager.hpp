@@ -1,1 +1,4 @@
-
+class TransferManager {
+    public:
+    
+};

@@ -14,5 +14,5 @@ class FilesenderManager {
         BroadcastManager broadcast_manager;
 
         explicit FilesenderManager(short port);
-        void run_broadcast();
+        std::string run_broadcast();
 };

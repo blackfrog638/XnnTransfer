@@ -15,5 +15,10 @@ class ReceiveContext{
     std::shared_ptr<std::ofstream> file;
     beast::flat_buffer buffer;
 
-    ReceiveContext(websocket::stream<net::ip::tcp::socket>& ws, std::ofstream &&file);
+    ReceiveContext(websocket::stream<net::ip::tcp::socket>& ws,
+        std::ofstream file)
+    : ws(ws),
+    file(std::make_shared<std::ofstream>(std::move(file)))
+    {}
 };
+

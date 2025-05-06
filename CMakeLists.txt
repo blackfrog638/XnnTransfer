@@ -11,11 +11,11 @@ file(GLOB_RECURSE CXX_SOURCE
     src/*.hpp
 )
 
-find_package(Boost REQUIRED COMPONENTS asio serialization)
+find_package(Boost REQUIRED COMPONENTS asio serialization beast)
 
 add_executable(filesender ${CXX_SOURCE})
 
-target_link_libraries(filesender PRIVATE Boost::asio Boost::serialization)
+target_link_libraries(filesender PRIVATE Boost::asio Boost::serialization Boost::beast)
 
 target_include_directories(filesender
     PRIVATE

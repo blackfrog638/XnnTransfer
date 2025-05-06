@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fstream>
 #include <memory>
 
@@ -18,4 +20,5 @@ class AsyncContext {
     
         AsyncContext(websocket::stream<net::ip::tcp::socket> &ws, std::ifstream file);
 };
+
 

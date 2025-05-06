@@ -1,11 +1,4 @@
-#include "async_receive.hpp"
-
-ReceiveContext::ReceiveContext(websocket::stream<net::ip::tcp::socket>& ws,
-    std::ofstream &&file)
-: ws(ws),
-file(std::make_shared<std::ofstream>(file))
-{}
-
+#include "async_recv.hpp"
 void async_receive(websocket::stream<net::ip::tcp::socket>& ws,
                    const std::string& file_path) {
     std::ofstream file(file_path, std::ios::binary);

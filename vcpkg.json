@@ -2,6 +2,7 @@
   "name": "asio-demo",
   "dependencies": [
     "boost-asio",
-    "boost-serialization"
+    "boost-serialization",
+    "boost-beast"
   ]
 }

@@ -9,7 +9,7 @@ int main(){
     FilesenderManager fm(PORT);
     std::cout<<"Login successful!"<<std::endl;
     std::thread broadcast_thread([&fm]() { fm.run_broadcast(); });
-    std::cout<<"Press Enter to stop broadcast..."<<std::endl;
+    std::cout<<"Please Enter the target username..."<<std::endl;
     broadcast_thread.join();
     return 0;
 }
