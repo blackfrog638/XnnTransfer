@@ -5,8 +5,19 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+file(GLOB_RECURSE CXX_SOURCE
+    src/*.cpp
+    src/*.h
+    src/*.hpp
+)
+
 find_package(Boost REQUIRED COMPONENTS asio serialization)
 
-add_executable(main src/main.cpp)
+add_executable(filesender ${CXX_SOURCE})
 
-target_link_libraries(main PRIVATE Boost::asio Boost::serialization)
+target_link_libraries(filesender PRIVATE Boost::asio Boost::serialization)
+
+target_include_directories(filesender
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+)
