@@ -12,10 +12,17 @@ file(GLOB_RECURSE CXX_SOURCE
 )
 
 find_package(Boost REQUIRED COMPONENTS asio serialization beast)
+find_package(nlohmann_json REQUIRED)
 
 add_executable(filesender ${CXX_SOURCE})
 
-target_link_libraries(filesender PRIVATE Boost::asio Boost::serialization Boost::beast)
+target_link_libraries(filesender 
+    PRIVATE
+        Boost::asio
+        Boost::serialization
+        Boost::beast
+        nlohmann_json::nlohmann_json
+)
 
 target_include_directories(filesender
     PRIVATE
