@@ -5,11 +5,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 file(GLOB_RECURSE CXX_SOURCE
     src/*.cpp
     src/*.h
     src/*.hpp
 )
+
+file(GLOB_RECURSE NOTED_FILES
+    ${CMAKE_SOURCE_DIR}/src/server_client/*.cpp
+    ${CMAKE_SOURCE_DIR}/src/server_client/*.hpp
+)
+
+list(REMOVE_ITEM CXX_SOURCE ${NOTED_FILES})
 
 find_package(Boost REQUIRED COMPONENTS asio serialization beast)
 find_package(nlohmann_json REQUIRED)

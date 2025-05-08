@@ -14,9 +14,14 @@ void BroadcastManager::broadcast_sender(short port){
 
         const auto broadcast_ep = net::ip::udp::endpoint(
             net::ip::address_v4::broadcast(), port);
-        
-        std::string new_ip = broadcast_ep.address().to_string();
-        account.ip = new_ip;
+    
+        socket.bind(net::ip::udp::endpoint(net::ip::udp::v4(), 0));
+        auto local_ip = net::ip::host_name();
+        auto resolver = net::ip::udp::resolver(io);
+        auto endpoints = resolver.resolve(local_ip, "");
+        local_ip = endpoints.begin()->endpoint().address().to_string();
+        //std::cout<<"Local IP: " << local_ip << std::endl;
+        account.ip = local_ip;
 
         while(!stop_flag){
 
@@ -33,12 +38,16 @@ void BroadcastManager::broadcast_sender(short port){
     }
 }
 
-void BroadcastManager::broadcast_receiver(short port)const{
+void BroadcastManager::broadcast_receiver(short port){
     while(!stop_flag){
-        auto received_messages = receiver_list(port);
-        if(!received_messages.empty()){
+        auto temp = get_receiver_list(port);
+        if(!temp.empty()){
+            receiver_list.clear();
+            receiver_list = get_receiver_list(port);
+        }
+        if(!receiver_list.empty()){
             std::cout << "Received messages: " << std::endl;
-            for(const auto& message : received_messages){
+            for(const auto& message : receiver_list){
                 std::cout << "name:" << message.name << " ip:" << message.ip
                           << " port:" << message.port << std::endl;
             }
@@ -46,7 +55,7 @@ void BroadcastManager::broadcast_receiver(short port)const{
     }
 }
 
-std::vector<Account> BroadcastManager::receiver_list(short port)const {
+std::vector<Account> BroadcastManager::get_receiver_list(short port)const {
     std::vector<Account> received_messages;
     try {
         net::io_context io;
