@@ -11,7 +11,11 @@
 namespace net = boost::asio;
 using namespace nlohmann;
 
-Verificator::Verificator(const std::string &target_user, const Account &account) :
+Verificator::Verificator(
+    const std::string &target_user,
+    const Account &account,
+    net::io_context &io) :
+    io(io),
     target_user(target_user),
     account(account) 
 {}
@@ -23,7 +27,6 @@ int Verificator::send_request(json &j) const{
         net::ip::tcp::endpoint
             ep(net::ip::make_address(raw_ip), raw_port);
         
-        net::io_context io;
         net::ip::tcp::socket socket(io);
         socket.connect(ep);
 
@@ -50,7 +53,6 @@ void Verificator::send_verification_request(const std::string &password)const {
 bool Verificator::verify_user()const{
     net::ip::tcp::endpoint ep(net::ip::address_v4::any(),
 		account.port);
-    net::io_context io;
     net::ip::tcp::acceptor acceptor(io, ep);
     acceptor.set_option(net::socket_base::reuse_address(true));
     acceptor.listen();

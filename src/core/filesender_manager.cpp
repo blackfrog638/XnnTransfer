@@ -2,12 +2,14 @@
 #include <thread>
 #include "filesender_manager.hpp"
 
-FilesenderManager::FilesenderManager(short port){
+FilesenderManager::FilesenderManager(short port):
+    broadcast_manager(io, account),
+    verificator(account.name, account, io)
+{
     authenticator.main_handler();
     account = authenticator.get_profile();
     account.port = port;
     broadcast_manager.account = account;
-    verificator.account = account;
 }
 
 std::pair<std::string, std::string> FilesenderManager::run_broadcast(){

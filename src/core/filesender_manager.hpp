@@ -8,13 +8,16 @@
 #include "../authentication/authenticator.hpp"
 #include "../broadcast/verificator.hpp"
 
+namespace net = boost::asio;
+
 class FilesenderManager {
     public:
         std::atomic<bool> global_stop_flag{false};
         std::set<std::string> whitelist;
 
         Account account;
-
+        net::io_context io;
+        
         Authenticator authenticator;
         BroadcastManager broadcast_manager;
         Verificator verificator;

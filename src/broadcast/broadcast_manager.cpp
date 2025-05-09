@@ -4,11 +4,19 @@
 #include <string>
 #include <thread>
 
+#include <nlohmann/json.hpp>
+
 #include "broadcast_manager.hpp"
+
+using namespace nlohmann;
+
+BroadcastManager::BroadcastManager(net::io_context &io_context,
+                                   const Account &account) :
+    account(account),
+    io(io_context) {}
 
 void BroadcastManager::broadcast_sender(short port){
     try {
-        net::io_context io;
         net::ip::udp::socket socket(io, net::ip::udp::v4());
         socket.set_option(net::socket_base::broadcast(true));
 
@@ -24,13 +32,14 @@ void BroadcastManager::broadcast_sender(short port){
         account.ip = local_ip;
 
         while(!stop_flag){
+            json j;
+            j["type"] = "broadcast";
+            j["name"] = account.name;
+            j["ip"] = account.ip;
+            j["port"] = account.port;
 
-            std::ostringstream oss;
-            boost::archive::text_oarchive oa(oss);
-            oa << account;
-            std::string serialized_account = oss.str();
-
-            socket.send_to(net::buffer(serialized_account), broadcast_ep);
+            std::string msg = j.dump();
+            socket.send_to(net::buffer(msg), broadcast_ep);
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     } catch(std::exception &e){
@@ -58,12 +67,10 @@ void BroadcastManager::broadcast_receiver(short port){
 std::vector<Account> BroadcastManager::get_receiver_list(short port)const {
     std::vector<Account> received_messages;
     try {
-        net::io_context io;
         net::ip::udp::socket socket(io, 
             net::ip::udp::endpoint(net::ip::udp::v4(), port));
         
         const size_t buffer_size = 1024;
-        std::string serialized_str;
         std::vector<char> buffer(buffer_size);
         net::ip::udp::endpoint remote_ep;
         //获取当时时钟，限时3秒刷新一次
@@ -71,12 +78,16 @@ std::vector<Account> BroadcastManager::get_receiver_list(short port)const {
 
         while(!stop_flag){
             size_t len = socket.receive_from(net::buffer(buffer), remote_ep);
-            std::string serialized_str(buffer.begin(), buffer.begin() + (int)len);
+            std::string msg(buffer.begin(), buffer.begin() + (int)len);
 
-            std::istringstream iss(serialized_str);
-            boost::archive::text_iarchive ia(iss);
+            json j = json::parse(msg);
+            if(j["type"] != "broadcast"){
+                continue;
+            }
             Account received_data;
-            ia >> received_data;
+            received_data.name = j["name"];
+            received_data.ip = j["ip"];
+            received_data.port = j["port"];
 
             if(!std::count(received_messages.begin(), received_messages.end(), received_data)){
                 received_messages.push_back(received_data);

@@ -14,6 +14,11 @@ class BroadcastManager {
         Account account;
         std::atomic<bool> stop_flag{false};//使用原子变量控制线程停止
         std::vector<Account> receiver_list;
+        net::io_context &io;
+
+        explicit BroadcastManager(net::io_context &io_context,
+            const Account &account);
+
         void broadcast_sender(short port);
         void broadcast_receiver(short port);
         
