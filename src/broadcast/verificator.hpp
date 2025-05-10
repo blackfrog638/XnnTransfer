@@ -1,5 +1,5 @@
 #pragma once
-
+#include <set>
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
 
@@ -13,8 +13,10 @@ class Verificator {
     Account account;
     std::string target_user;
     net::io_context &io;
+    std::set<std::string> &whitelist;
 
-    Verificator(const std::string &target_user, const Account &account, net::io_context &io);
+    Verificator(const std::string &target_user, const Account &account,
+        net::io_context &io, std::set<std::string> &whitelist);
 
     int send_request(json &j)const;
     bool verify_user()const;

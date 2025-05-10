@@ -4,7 +4,7 @@
 
 FilesenderManager::FilesenderManager(short port):
     broadcast_manager(io, account),
-    verificator(account.name, account, io)
+    verificator(account.name, account, io, whitelist)
 {
     authenticator.main_handler();
     account = authenticator.get_profile();

@@ -26,7 +26,7 @@ void async_send(websocket::stream<net::ip::tcp::socket> &ws,
             std::cerr << "Error sending file: " << ec.message() << std::endl;
             return;
         }
-
+        
         ctx->file_stream->read(ctx->buffer->data(), ctx->buffer->size());
         std::size_t bytes_read = ctx->file_stream->gcount();
         if(bytes_read == 0) {

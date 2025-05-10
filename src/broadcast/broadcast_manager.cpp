@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <thread>
 
@@ -31,7 +30,7 @@ void BroadcastManager::broadcast_sender(short port){
         //std::cout<<"Local IP: " << local_ip << std::endl;
         account.ip = local_ip;
 
-        while(!stop_flag){
+        while(true){
             json j;
             j["type"] = "broadcast";
             j["name"] = account.name;
