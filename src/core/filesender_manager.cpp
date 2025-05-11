@@ -24,7 +24,7 @@ std::pair<std::string, std::string> FilesenderManager::run_broadcast(){
     std::cout << "Enter password for " << target_user << ": ";
     std::cin >> password;
 
-    // for(auto i : broadcast_manager.receiver_list){
+    // for(auto &i : broadcast_manager.receiver_list){
     //     std::cout<<i.name<<std::endl;
     // }
     // std::cout<<"Target user: " << target_user << std::endl;
