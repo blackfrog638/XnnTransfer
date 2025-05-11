@@ -14,10 +14,12 @@ using namespace nlohmann;
 Verificator::Verificator(
     const std::string &target_user,
     const Account &account,
-    net::io_context &io) :
+    net::io_context &io, 
+    std::set<std::string> &whitelist) :
     io(io),
     target_user(target_user),
-    account(account) 
+    account(account),
+    whitelist(whitelist)
 {}
 
 int Verificator::send_request(json &j) const{
@@ -80,6 +82,7 @@ bool Verificator::verify_user()const{
         if(j["ip"] == account.ip && j["password"] == account.password) {
             std::cout << "Verification successful for user: " << j["name"] << std::endl;
             response["status"] = "success";
+            whitelist.insert(j["ip"]);
             send_request(response);
             return true;
         } else {
