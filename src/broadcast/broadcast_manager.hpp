@@ -24,5 +24,5 @@ class BroadcastManager {
         
     private:
         //!TODO: 改变返回类型
-        std::vector<Account> get_receiver_list(short port)const;
+        std::vector<Account> get_receiver_list(short port);
 };

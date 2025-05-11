@@ -50,8 +50,7 @@ void BroadcastManager::broadcast_sender(short port){
 void BroadcastManager::broadcast_receiver(short port){
     while(!stop_flag){
         auto temp = get_receiver_list(port);
-        if(!temp.empty()){
-            receiver_list.clear();
+        if(!temp.empty()){  
             receiver_list = get_receiver_list(port);
         }
         if(!receiver_list.empty()){
@@ -64,7 +63,7 @@ void BroadcastManager::broadcast_receiver(short port){
     }
 }
 
-std::vector<Account> BroadcastManager::get_receiver_list(short port)const {
+std::vector<Account> BroadcastManager::get_receiver_list(short port){
     std::vector<Account> received_messages;
     try {
         net::ip::udp::socket socket(io, 
