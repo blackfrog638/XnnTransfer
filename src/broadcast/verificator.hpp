@@ -10,12 +10,12 @@ namespace net = boost::asio;
 
 class Verificator {
     public:
-    Account account;
-    std::string target_user;
+    Account &account;
+    std::string &target_user;
     net::io_context &io;
     std::set<std::string> &whitelist;
 
-    Verificator(const std::string &target_user, const Account &account,
+    Verificator(std::string &target_user, Account &account,
         net::io_context &io, std::set<std::string> &whitelist);
 
     int send_request(json &j)const;

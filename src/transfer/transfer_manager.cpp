@@ -13,9 +13,9 @@ TransferManager::TransferManager(net::io_context& io)
       file_chunk_buffer(8192), // 8KB buffer
       is_final_chunk_(false) {}
 
-void TransferManager::run(const std::string& host, const std::string& port, const std::string &file_path) {
+void TransferManager::run(const std::string& host, short port, const std::string &file_path) {
     host_ = host;
-    port_ = static_cast<short>(std::stoi(port));
+    port_ = port;
     file_path_ = file_path;
 
     beast::error_code ec;

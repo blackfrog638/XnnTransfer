@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -48,10 +49,7 @@ void BroadcastManager::broadcast_sender(short port){
 
 void BroadcastManager::broadcast_receiver(short port){
     while(!stop_flag){
-        auto temp = get_receiver_list(port);
-        if(!temp.empty()){  
-            receiver_list = get_receiver_list(port);
-        }
+        receiver_list = get_receiver_list(port);
         if(!receiver_list.empty()){
             std::cout << "Received messages: " << std::endl;
             for(const auto& message : receiver_list){
@@ -72,7 +70,7 @@ std::vector<Account> BroadcastManager::get_receiver_list(short port){
         std::vector<char> buffer(buffer_size);
         net::ip::udp::endpoint remote_ep;
         //获取当时时钟，限时3秒刷新一次
-        auto clock_start = std::chrono::high_resolution_clock::now();
+        auto clock_start = std::chrono::steady_clock::now();
 
         while(!stop_flag){
             size_t len = socket.receive_from(net::buffer(buffer), remote_ep);

@@ -10,6 +10,7 @@ FilesenderManager::FilesenderManager(short port):
     account = authenticator.get_profile();
     account.port = port;
     broadcast_manager.account = account;
+    verificator.account = account;
 }
 
 std::pair<std::string, std::string> FilesenderManager::run_broadcast(){
@@ -24,10 +25,10 @@ std::pair<std::string, std::string> FilesenderManager::run_broadcast(){
     std::cout << "Enter password for " << target_user << ": ";
     std::cin >> password;
 
-    // for(auto &i : broadcast_manager.receiver_list){
-    //     std::cout<<i.name<<std::endl;
-    // }
-    // std::cout<<"Target user: " << target_user << std::endl;
+    for(auto &i : broadcast_manager.receiver_list){
+        std::cout<<"captured: "<<i.name<<std::endl;
+    }
+    //std::cout<<"Target user: " << target_user << std::endl;
 
     Account target_account;
     for (const auto& account : broadcast_manager.receiver_list) {
