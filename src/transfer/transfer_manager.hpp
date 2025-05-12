@@ -13,7 +13,7 @@ class TransferManager : public std::enable_shared_from_this<TransferManager>{
 public:
     explicit TransferManager(net::io_context& io);
 
-    void run(const std::string& host, const std::string& port, const std::string &file_path);
+    void run(const std::string& host, short port, const std::string &file_path);
 
 private:
     void on_resolve(beast::error_code ec, 
