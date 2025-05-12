@@ -4,7 +4,8 @@
 
 FilesenderManager::FilesenderManager(short port):
     broadcast_manager(io, account),
-    verificator(account.name, account, io, whitelist)
+    verificator(account.name, account, io, whitelist),
+    transfer_manager(io)
 {
     authenticator.main_handler();
     account = authenticator.get_profile();
@@ -25,9 +26,9 @@ std::pair<std::string, std::string> FilesenderManager::run_broadcast(){
     std::cout << "Enter password for " << target_user << ": ";
     std::cin >> password;
 
-    for(auto &i : broadcast_manager.receiver_list){
-        std::cout<<"captured: "<<i.name<<std::endl;
-    }
+    // for(auto &i : broadcast_manager.receiver_list){
+    //     std::cout<<"captured: "<<i.name<<std::endl;
+    // }
     //std::cout<<"Target user: " << target_user << std::endl;
 
     Account target_account;
@@ -67,4 +68,10 @@ void FilesenderManager::verifying()const{
             std::cout<<"Verification failed!"<<std::endl;
         }
     }
+}
+
+void FilesenderManager::run_transfer(const std::string &target_ip, const std::string &file_path) {
+    std::cout<<"Starting file transfer..."<<std::endl;
+    transfer_manager.run(target_ip, account.port, file_path);
+    std::cout<<"File transfer completed!"<<std::endl;
 }
