@@ -10,10 +10,10 @@ TransferManager::TransferManager(net::io_context& io)
     : io(io),
       resolver(io),
       ws_(net::make_strand(io)),
-      file_chunk_buffer(8192), // 8KB buffer
+      file_chunk_buffer(1024 * 1024 * 10), // 8KB buffer
       is_final_chunk_(false) {}
 
-void TransferManager::run(const std::string& host, short port, const std::string &file_path) {
+void TransferManager::run(std::string& host, short port, std::string &file_path) {
     host_ = host;
     port_ = port;
     file_path_ = file_path;
@@ -59,6 +59,7 @@ void TransferManager::on_handshake(beast::error_code ec) {
 
 void TransferManager::send_metadata() {
     json metadata_json;
+    metadata_json["type"] = "file_transfer";
     metadata_json["file_name"] = std::filesystem::path(file_path_).filename().string();
     metadata_json["file_size"] = file_size_;
     metadata_serialized_ = metadata_json.dump();

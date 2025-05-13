@@ -17,7 +17,7 @@ class BroadcastManager {
         net::io_context &io;
 
         explicit BroadcastManager(net::io_context &io_context,
-            const Account &account);
+            Account &account);
 
         void broadcast_sender(short port);
         void broadcast_receiver(short port);
