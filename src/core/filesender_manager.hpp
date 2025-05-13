@@ -27,6 +27,8 @@ class FilesenderManager {
         explicit FilesenderManager(short port);
         std::pair<std::string, std::string> run_broadcast();
         void run_verification(const std::string &target_user, const std::string &password)const;
-        void verifying()const;
-        void run_transfer(const std::string &target_ip, const std::string &file_path);
+        void verifying();
+        void run_transfer(const std::string &target_id, const std::string &file_path);
+    private:
+        Account get_target_ip(const std::string& target_id)const;
 };
