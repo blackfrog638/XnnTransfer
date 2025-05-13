@@ -11,7 +11,7 @@
 using namespace nlohmann;
 
 BroadcastManager::BroadcastManager(net::io_context &io_context,
-                                   const Account &account) :
+                                   Account &account) :
     account(account),
     io(io_context) {}
 

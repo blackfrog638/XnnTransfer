@@ -7,6 +7,7 @@
 #include "../broadcast/broadcast_manager.hpp"
 #include "../authentication/authenticator.hpp"
 #include "../broadcast/verificator.hpp"
+#include "../transfer/transfer_manager.hpp"
 
 namespace net = boost::asio;
 
@@ -21,9 +22,13 @@ class FilesenderManager {
         Authenticator authenticator;
         BroadcastManager broadcast_manager;
         Verificator verificator;
+        TransferManager transfer_manager;
 
         explicit FilesenderManager(short port);
         std::pair<std::string, std::string> run_broadcast();
         void run_verification(const std::string &target_user, const std::string &password)const;
-        void verifying()const;
+        void verifying();
+        void run_transfer(const std::string &target_id, const std::string &file_path);
+    private:
+        Account get_target_ip(const std::string& target_id)const;
 };
