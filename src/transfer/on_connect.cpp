@@ -13,6 +13,6 @@ void TransferManager::on_connect(beast::error_code ec,
             req.set(beast::http::field::user_agent,
                 std::string(BOOST_BEAST_VERSION_STRING) + " TransferManager");
         }));
-    ws_.async_handshake(host_, "/",
+    ws_.async_handshake(host_ + ":" + std::to_string(ep.port()), "/",
         beast::bind_front_handler(&TransferManager::on_handshake, shared_from_this()));
 }
