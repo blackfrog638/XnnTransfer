@@ -23,11 +23,15 @@ Client::Client(net::io_context& ioc_, std::string& id_, std::string& ip_, short 
 net::awaitable<void> Client::sender(json msg, std::string ip) {
     try {
         std::string data = msg.dump();
-
+        uint32_t data_len = static_cast<uint32_t>(data.size());
+        // Convert length to network byte order before sending
+        uint32_t net_data_len = htonl(data_len);
         auto endpoints = co_await client_resolver.async_resolve(ip, std::to_string(port), net::use_awaitable);
         co_await net::async_connect(client_socket, endpoints, net::use_awaitable);
 
         net::const_buffer buffer_to_send = net::buffer(data, data.size());
+
+        co_await net::async_write(client_socket, net::buffer(&net_data_len, sizeof(net_data_len)), net::use_awaitable);
         co_await net::async_write(client_socket, buffer_to_send, net::use_awaitable);
     } catch (std::exception& e) {
         std::cout << "error on sender: " << e.what() << std::endl;
@@ -85,6 +89,7 @@ net::awaitable<void> Client::send_metadata(std::string target_ip, std::string fi
         metadata_msg["type"] = "file_metadata_basic";
         metadata_msg["file_name"] = file_name;
         metadata_msg["file_size"] = file_size_val;
+        metadata_msg["ip"] = ip;
 
         std::cout << "[INFO] Prepared basic metadata for " << file_name << ":" << std::endl;
         std::cout << metadata_msg.dump(4) << std::endl;
@@ -126,7 +131,7 @@ net::awaitable<void> Client::send_file_chunks(const std::string& target_ip, cons
             throw std::runtime_error("Failed to open file for sending chunks: " + file_path_str);
         }
 
-        const std::size_t CHUNK_SIZE = 1024 * 8; // 1MB
+        const std::size_t CHUNK_SIZE = 1024 * 1024; // 1MB
         std::vector<char> buffer(CHUNK_SIZE);
         uint32_t chunk_index = 0;
         uintmax_t bytes_sent = 0;
@@ -152,9 +157,10 @@ net::awaitable<void> Client::send_file_chunks(const std::string& target_ip, cons
                 chunk_msg["data_b64"] = encoded_data;
                 chunk_msg["size_original"] = static_cast<uint32_t>(bytes_read); // 原始二进制大小
                 chunk_msg["is_last_chunk"] = (chunk_index == total_chunks - 1);
-
-                std::cout << "[INFO] Sending chunk " << chunk_index + 1 << "/" << total_chunks << " for " << file_name
-                          << " (original size: " << bytes_read << " bytes)..." << std::endl;
+                if (chunk_index % 5 == 0) {
+                    std::cout << "[INFO] Sending chunk " << chunk_index + 1 << "/" << total_chunks << " for "
+                              << file_name << " (original size: " << bytes_read << " bytes)..." << std::endl;
+                }
                 co_await sender(chunk_msg, target_ip);
 
                 bytes_sent += bytes_read;

@@ -27,7 +27,9 @@ class Server {
     std::vector<std::string>& whitelist;
 
   private:
-    const std::size_t CHUNK_SIZE = 1024 * 8;
+
+    net::awaitable<void> session_handler(net::ip::tcp::socket current_socket);
+    const std::size_t CHUNK_SIZE = 1024 * 1024;
     std::string save_directory_ = "received_files";
 
     std::map<std::string, ReceivingFileInfo> active_transfers_;

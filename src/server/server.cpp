@@ -16,6 +16,102 @@ Server::Server(net::io_context& ioc_, std::string& id_, std::string& ip_, std::s
     : ioc(ioc_), id(id_), ip(ip_), pw(pw_), port(port_), server_socket(ioc), server_ep(net::ip::make_address(ip), port),
       whitelist(whitelist_), response_queue(response_queue_) {}
 
+net::awaitable<void> Server::session_handler(net::ip::tcp::socket current_socket) {
+    try {
+        while (current_socket.is_open()) { // Loop to handle multiple messages on the same connection
+            // 1. Read the length of the incoming JSON data
+            uint32_t net_data_len;
+            std::size_t n = co_await net::async_read(current_socket, net::buffer(&net_data_len, sizeof(net_data_len)),
+                                                     net::use_awaitable);
+
+            if (n == 0) { // Connection closed by peer (EOF)
+                // std::cout << "Connection closed by peer while waiting for length." << std::endl;
+                break; // Exit session handler
+            }
+            if (n != sizeof(net_data_len)) {
+                std::cerr << "Error: Did not read full length header. Read " << n << " bytes." << std::endl;
+                break;
+            }
+
+            uint32_t data_len = ntohl(net_data_len); // network to host long
+
+            // Sanity check for data length to prevent excessively large allocations
+            const size_t MAX_ALLOWED_JSON_SIZE = 10 * 1024 * 1024; // e.g., 10MB
+            if (data_len == 0) {
+                std::cerr << "Error: Received data length is 0. Closing connection." << std::endl;
+                break; // Or handle as an empty message if protocol allows
+            }
+            if (data_len > MAX_ALLOWED_JSON_SIZE) {
+                std::cerr << "Error: Requested data length " << data_len << " exceeds maximum allowed size "
+                          << MAX_ALLOWED_JSON_SIZE << ". Closing connection." << std::endl;
+                // Optionally, you might try to read and discard the oversized message
+                // to clean the socket, but closing is safer.
+                break;
+            }
+
+            // 2. Read the actual JSON data
+            std::vector<char> body_buffer(data_len);
+            n = co_await net::async_read(current_socket, net::buffer(body_buffer), net::use_awaitable);
+
+            if (n == 0 && data_len > 0) { // Connection closed by peer (EOF)
+                std::cerr << "Connection closed by peer while reading message body." << std::endl;
+                break; // Exit session handler
+            }
+            if (n != data_len) {
+                std::cerr << "Error: Did not read full JSON body. Expected " << data_len << ", got " << n << std::endl;
+                break;
+            }
+
+            std::string data(body_buffer.data(), body_buffer.size());
+            json msg = json::parse(data); // Now this should be a complete JSON
+            std::string type = msg["type"];
+
+            // std::cout << "Received complete message of type: " << type << ", size: " << data_len << std::endl;
+
+            if (type == "verification_request") {
+                verify_request(msg);
+            } else if (type == "verification_response") {
+                verify_response(msg);
+            } else if (type == "file_metadata_basic") {
+                // If handle_metadata needs to use the socket, it should accept it.
+                // Be careful with socket ownership if spawning detached coroutines.
+                // If the spawned coroutine takes a long time and this session_handler exits,
+                // the socket might be closed prematurely if not managed carefully.
+                // One way: pass std::move(current_socket) if the handler is the new owner.
+                // But then this loop cannot continue for this socket.
+                // For now, assume handlers are quick or don't need the socket further for this example.
+                net::co_spawn(ioc, handle_metadata(msg), net::detached);
+            } else if (type == "file_chunk") {
+                net::co_spawn(ioc, handle_file_chunk(msg), net::detached);
+            } else {
+                std::cerr << "Unknown message type: " << type << std::endl;
+            }
+            // If you only expect one message per connection, you would break here or close the socket.
+            // For multiple messages, the loop continues.
+        }
+    } catch (const nlohmann::json::parse_error& e) {
+        std::cerr << "JSON parse error in session: " << e.what() << std::endl;
+        // Potentially log the received data that failed to parse
+    } catch (const boost::system::system_error& e) {
+        if (e.code() == net::error::eof || e.code() == net::error::connection_reset ||
+            e.code() == net::error::broken_pipe) {
+            // std::cout << "Connection closed or reset by peer: " << e.what() << std::endl;
+        } else {
+            std::cerr << "Network error in session: " << e.what() << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error in session_handler: " << e.what() << std::endl;
+    }
+    // Ensure socket is closed when session ends or on error
+    if (current_socket.is_open()) {
+        boost::system::error_code ec;
+        current_socket.shutdown(net::ip::tcp::socket::shutdown_both, ec);
+        current_socket.close(ec);
+    }
+    // std::cout << "Session ended." << std::endl;
+    co_return;
+}
+
 net::awaitable<void> Server::receiver() {
     try {
         const size_t buffer_size = 3 * 1024 * 1024;
@@ -26,21 +122,13 @@ net::awaitable<void> Server::receiver() {
         acceptor.set_option(net::socket_base::reuse_address(true));
         acceptor.listen();
         while (true) {
-            server_socket = co_await acceptor.async_accept();
-            size_t bytes_read = co_await server_socket.async_read_some(net::buffer(buffer), net::use_awaitable);
-            std::string data(buffer.data(), bytes_read);
-            json msg = json::parse(data);
-            std::string type = msg["type"];
+            server_socket = co_await acceptor.async_accept(net::use_awaitable);
+            // std::cout << "Accepted new connection from: " << current_connection_socket.remote_endpoint() <<
+            // std::endl;
 
-            if (type == "verification_request") {
-                verify_request(msg);
-            } else if (type == "verification_response") {
-                verify_response(msg);
-            } else if (type == "file_metadata_basic") {
-                net::co_spawn(ioc, handle_metadata(msg), net::detached);
-            } else if (type == "file_chunk") {
-                net::co_spawn(ioc, handle_file_chunk(msg), net::detached);
-            }
+            // Spawn a new coroutine to handle this client's session.
+            // This allows the server to accept other connections concurrently.
+            net::co_spawn(ioc, session_handler(std::move(server_socket)), net::detached);
         }
 
     } catch (const std::exception& e) {
@@ -90,6 +178,17 @@ net::awaitable<void> Server::handle_metadata(const json& j) {
         std::string file_name = j.at("file_name").get<std::string>();
         uintmax_t file_size = j.at("file_size").get<uintmax_t>();
 
+        std::string raw_ip = j["ip"];
+        bool b = false;
+        for (auto& i : whitelist) {
+            if (i == raw_ip) {
+                b = true;
+            }
+        }
+        if (!b) {
+            std::cout << "[Server] ip rejected: " << raw_ip << std::endl;
+            co_return;
+        }
         std::cout << "[Server] Received metadata for: " << file_name << ", Size: " << file_size << " bytes."
                   << std::endl;
 
@@ -223,10 +322,11 @@ net::awaitable<void> Server::handle_file_chunk(const json& j) {
         if (transfer_info.total_chunks > 0) {
             transfer_info.received_chunks_mask[chunk_index] = true;
         }
-
-        std::cout << "[Server] Wrote chunk " << chunk_index << " for " << file_name
-                  << " (size: " << decoded_chunk.size() << " B). Total received: " << transfer_info.bytes_received
-                  << "/" << transfer_info.expected_size << " B." << std::endl;
+        if (chunk_index % 5 == 0) {
+            std::cout << "[Server] Wrote chunk " << chunk_index << " for " << file_name
+                      << " (size: " << decoded_chunk.size() << " B). Total received: " << transfer_info.bytes_received
+                      << "/" << transfer_info.expected_size << " B." << std::endl;
+        }
 
         bool all_chunks_accounted_for = false;
         if (transfer_info.total_chunks > 0) {

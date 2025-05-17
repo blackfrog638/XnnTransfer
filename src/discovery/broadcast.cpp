@@ -94,7 +94,7 @@ net::awaitable<void> Broadcast::list_handler() {
             i = i.substr(1, i.size() - 2);
             j = j.substr(1, j.size() - 2);
             k = k.substr(1, k.size() - 2);
-            std::cout << i << " " << j << " " << k << std::endl;
+            std::cout << "[DEVICE] id:" << i << " ip:" << j << " port:" << k << std::endl;
         }
         temp.clear();
     }
