@@ -6,10 +6,13 @@
 #include <thread>
 
 json Manager::read_json_profile() {
-    std::string filename = R"(E:\code\FileSender-ByteSpark\src\temp\profile.json)";
-    std::ifstream inputFile(filename);
+    std::filesystem::path p;
+    p /= "src";
+    p /= "temp";
+    p /= "profile.json";
+    std::ifstream inputFile(p);
     if (!inputFile.is_open()) {
-        std::cerr << "Error: Unable to fetch file \"" << filename << "\"" << std::endl;
+        std::cerr << "Error: Unable to fetch file \"" << p << "\"" << std::endl;
         return 1;
     }
     json json_data;
