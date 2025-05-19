@@ -41,6 +41,7 @@ CMakeUserPresets.json
 /build
 /out
 /src/temp/*
+/received_files
 
 # IDE settings
 .vscode/settings.json

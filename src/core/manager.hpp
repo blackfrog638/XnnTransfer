@@ -33,6 +33,6 @@ class Manager {
     Broadcast bc;
     Server server;
     Client client;
-    std::queue<std::string> response_queue;
+    std::queue<json> response_queue;
     std::vector<std::string> whitelist;
 };

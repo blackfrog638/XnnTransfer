@@ -16,13 +16,15 @@
 namespace fs = std::filesystem;
 
 Client::Client(net::io_context& ioc_, std::string& id_, std::string& ip_, short port_,
-               std::queue<std::string>& response_queue_)
+               std::queue<json>& response_queue_)
     : ioc(ioc_), id(id_), ip(ip_), port(port_), client_socket(ioc), client_ep(net::ip::make_address(ip), port),
       client_resolver(ioc), response_queue(response_queue_) {}
 
 net::awaitable<void> Client::sender(json msg, std::string ip) {
     try {
+        msg["target_ip"] = ip;
         std::string data = msg.dump();
+        // std::cout << data << std::endl;
         uint32_t data_len = static_cast<uint32_t>(data.size());
         // Convert length to network byte order before sending
         uint32_t net_data_len = htonl(data_len);
@@ -47,17 +49,6 @@ net::awaitable<void> Client::send_request(std::string target_ip, std::string pw)
     j["pw"] = pw;
     j["port"] = std::to_string(port);
 
-    co_await sender(j, target_ip);
-    co_return;
-}
-
-net::awaitable<void> Client::send_response(std::string target_ip, bool succeed) {
-    json j;
-    j["type"] = "verification_response";
-    j["ip"] = ip;
-    j["id"] = id;
-    j["port"] = std::to_string(port);
-    j["status"] = succeed ? "passed" : "rejected";
     co_await sender(j, target_ip);
     co_return;
 }
@@ -244,8 +235,9 @@ net::awaitable<void> Client::handle_request() {
         timer.expires_after(std::chrono::seconds(3));
         co_await timer.async_wait(net::use_awaitable);
         if (!response_queue.empty()) {
-            std::string top = response_queue.front();
-            net::co_spawn(ioc, send_response(top, true), net::detached);
+            json top = response_queue.front();
+            std::string tar_ip = top["target_ip"];
+            net::co_spawn(ioc, sender(top, tar_ip), net::detached);
             response_queue.pop();
         }
     }

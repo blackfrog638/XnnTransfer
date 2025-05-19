@@ -1,10 +1,7 @@
 #include "server.hpp"
+#include "../util/requests.hpp"
 
 #include <algorithm>
-#include <array>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <cstddef>
 #include <exception>
 #include <iostream>
@@ -12,7 +9,7 @@
 #include <boost/asio/awaitable.hpp>
 
 Server::Server(net::io_context& ioc_, std::string& id_, std::string& ip_, std::string& pw_, short port_,
-               std::vector<std::string>& whitelist_, std::queue<std::string>& response_queue_)
+               std::vector<std::string>& whitelist_, std::queue<json>& response_queue_)
     : ioc(ioc_), id(id_), ip(ip_), pw(pw_), port(port_), server_socket(ioc), server_ep(net::ip::make_address(ip), port),
       whitelist(whitelist_), response_queue(response_queue_) {}
 
@@ -64,30 +61,7 @@ net::awaitable<void> Server::session_handler(net::ip::tcp::socket current_socket
 
             std::string data(body_buffer.data(), body_buffer.size());
             json msg = json::parse(data); // Now this should be a complete JSON
-            std::string type = msg["type"];
-
-            // std::cout << "Received complete message of type: " << type << ", size: " << data_len << std::endl;
-
-            if (type == "verification_request") {
-                verify_request(msg);
-            } else if (type == "verification_response") {
-                verify_response(msg);
-            } else if (type == "file_metadata_basic") {
-                // If handle_metadata needs to use the socket, it should accept it.
-                // Be careful with socket ownership if spawning detached coroutines.
-                // If the spawned coroutine takes a long time and this session_handler exits,
-                // the socket might be closed prematurely if not managed carefully.
-                // One way: pass std::move(current_socket) if the handler is the new owner.
-                // But then this loop cannot continue for this socket.
-                // For now, assume handlers are quick or don't need the socket further for this example.
-                net::co_spawn(ioc, handle_metadata(msg), net::detached);
-            } else if (type == "file_chunk") {
-                net::co_spawn(ioc, handle_file_chunk(msg), net::detached);
-            } else {
-                std::cerr << "Unknown message type: " << type << std::endl;
-            }
-            // If you only expect one message per connection, you would break here or close the socket.
-            // For multiple messages, the loop continues.
+            request_filter(msg);
         }
     } catch (const nlohmann::json::parse_error& e) {
         std::cerr << "JSON parse error in session: " << e.what() << std::endl;
@@ -110,6 +84,34 @@ net::awaitable<void> Server::session_handler(net::ip::tcp::socket current_socket
     }
     // std::cout << "Session ended." << std::endl;
     co_return;
+}
+
+void Server::request_filter(const json& msg) {
+    try {
+        RequestType x = find_type(msg);
+        switch (x) {
+        case RequestType::VerificationRequest:
+            verify_request(msg);
+            break;
+        case RequestType::VerificationResponse:
+            verify_response(msg);
+            break;
+        case RequestType::FileMetadataBasic:
+            net::co_spawn(ioc, handle_metadata(msg), net::detached);
+            break;
+        case RequestType::FileChunk:
+            net::co_spawn(ioc, handle_file_chunk(msg), net::detached);
+            break;
+        case RequestType::Serverclosed:
+            std::cout << "Session closed!" << std::endl;
+            break;
+        default:
+            std::cerr << "Unknown message type!" << std::endl;
+            break;
+        }
+    } catch (std::exception& e) {
+        std::cerr << "[ERROR] parsing request:" << e.what() << std::endl;
+    }
 }
 
 net::awaitable<void> Server::receiver() {
@@ -141,6 +143,12 @@ void Server::verify_request(json j) {
     try {
         std::string ver_pw = j["pw"];
         std::string ver_ip = j["ip"];
+        json msg;
+        msg["type"] = "verification_response";
+        msg["ip"] = ip;
+        msg["target_ip"] = ver_ip;
+        msg["id"] = id;
+        msg["port"] = std::to_string(port);
         if (ver_pw == pw) {
             bool flag = false;
             for (auto& i : whitelist) {
@@ -150,8 +158,11 @@ void Server::verify_request(json j) {
                 }
             }
             if (!flag) {
+                msg["status"] = "passed";
                 whitelist.push_back(ver_ip);
-                response_queue.push(ver_ip);
+                response_queue.push(msg);
+            } else {
+                msg["status"] = "rejected";
             }
         }
     } catch (const std::exception& e) {

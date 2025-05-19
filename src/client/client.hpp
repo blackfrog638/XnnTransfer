@@ -10,8 +10,7 @@ using namespace nlohmann;
 
 class Client {
   public:
-    Client(net::io_context& ioc_, std::string& id_, std::string& ip_, short port_,
-           std::queue<std::string>& response_queue_);
+    Client(net::io_context& ioc_, std::string& id_, std::string& ip_, short port_, std::queue<json>& response_queue_);
 
     net::awaitable<void> send_request(std::string target_ip, std::string pw);
     net::awaitable<void> send_response(std::string target_ip, bool succeed);
@@ -23,7 +22,7 @@ class Client {
     net::io_context& ioc;
     std::string& ip;
     short port;
-    std::queue<std::string>& response_queue;
+    std::queue<json>& response_queue;
 
     net::ip::tcp::socket client_socket;
     net::ip::tcp::endpoint client_ep;

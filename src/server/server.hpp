@@ -14,7 +14,7 @@ using namespace nlohmann;
 class Server {
   public:
     Server(net::io_context& ioc_, std::string& id_, std::string& ip_, std::string& pw_, short port_,
-           std::vector<std::string>& whitelist_, std::queue<std::string>& response_queue_);
+           std::vector<std::string>& whitelist_, std::queue<json>& response_queue_);
 
     net::awaitable<void> receiver();
     void verify_request(json j);
@@ -27,7 +27,7 @@ class Server {
     std::vector<std::string>& whitelist;
 
   private:
-
+    void request_filter(const json& msg);
     net::awaitable<void> session_handler(net::ip::tcp::socket current_socket);
     const std::size_t CHUNK_SIZE = 1024 * 1024;
     std::string save_directory_ = "received_files";
@@ -38,7 +38,7 @@ class Server {
     std::string& ip;
     std::string& pw;
     short port;
-    std::queue<std::string>& response_queue;
+    std::queue<json>& response_queue;
 
     net::ip::tcp::socket server_socket;
     net::ip::tcp::endpoint server_ep;
