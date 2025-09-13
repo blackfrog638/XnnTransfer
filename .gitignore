@@ -40,6 +40,7 @@ build/
 
 # clangd cache
 .cache
+compile_commands.json
 
 # CMake user presets
 CMakeUserPresets.json

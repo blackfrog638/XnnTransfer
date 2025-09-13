@@ -1,2 +1,16 @@
 CompileFlags:
-  Compiler: clang-cl
+  CompilationDatabase: compile_commands.json
+
+Diagnostics:
+  Suppress: 
+    - "drv_unknown_argument"
+    - "unused-command-line-argument-hard-error-in-future"
+
+Index:
+  Background: Build
+
+# InlayHints 配置（可选，显示类型推断等信息）
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
