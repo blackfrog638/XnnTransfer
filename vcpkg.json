@@ -1,9 +1,0 @@
-{
-  "name": "asio-demo",
-  "dependencies": [
-    "boost-asio",
-    "boost-serialization",
-    "boost-beast",
-    "nlohmann-json"
-  ]
-}

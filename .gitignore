@@ -1,3 +1,10 @@
+# Xmake cache
+.xmake/
+build/
+
+# MacOS Cache
+.DS_Store
+
 # Prerequisites
 *.d
 
@@ -40,10 +47,11 @@ CMakeUserPresets.json
 # CMake build directory
 /build
 /out
-/src/temp/*
-/received_files
 
 # IDE settings
-.vscode/settings.json
+.vscode
 .idea
 .vs
+
+#electron
+node_modules
