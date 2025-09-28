@@ -2,7 +2,7 @@ add_rules("mode.debug", "mode.release")
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
 
 set_languages("c++20")
-add_requires("fmt", "spdlog", "nlohmann_json", "asio")
+add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest")
 
 target("XnnTransfer")
     set_kind("binary")
@@ -15,6 +15,18 @@ target("XnnTransfer")
         set_optimize("none")
     end
     
+    if is_plat("windows") then
+        add_syslinks("ws2_32", "iphlpapi")
+    end
+
+target("core_tests")
+    set_kind("binary")
+    set_default(false)
+    add_files("src/core/*.cc")
+    add_files("tests/core/*.cc")
+    add_includedirs("src")
+    add_packages("asio", "gtest")
+
     if is_plat("windows") then
         add_syslinks("ws2_32", "iphlpapi")
     end

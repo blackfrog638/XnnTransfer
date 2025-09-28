@@ -1,5 +1,5 @@
 Language:        Cpp
-AccessModifierOffset: -4
+AccessModifierOffset: -2
 AlignAfterOpenBracket: Align
 AlignArrayOfStructures: None
 AlignConsecutiveAssignments:
