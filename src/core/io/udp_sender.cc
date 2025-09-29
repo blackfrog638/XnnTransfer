@@ -8,11 +8,17 @@ UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
     socket_.bind(asio::ip::udp::endpoint(asio::ip::address_v4::loopback(), 0));
 }
 
-asio::awaitable<void> UdpSender::send_to(const std::string_view data,
+asio::awaitable<void> UdpSender::send_to(const ConstDataBlock data,
                                          const std::string_view host,
                                          const uint16_t port) {
     asio::ip::udp::endpoint endpoint(asio::ip::make_address(host.data()), port);
-    executor_.spawn(socket_.async_send_to(asio::buffer(data), endpoint, asio::use_awaitable));
+    if (data.empty()) {
+        co_return;
+    }
+    executor_.spawn(
+        socket_.async_send_to(asio::buffer(static_cast<const void*>(data.data()), data.size()),
+                              endpoint,
+                              asio::use_awaitable));
     co_return;
 }
 } // namespace core::net::io

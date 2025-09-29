@@ -12,10 +12,11 @@ TcpSender::TcpSender(Executor& executor,
     executor_.spawn(connector_.connect(host, port));
 }
 
-asio::awaitable<void> TcpSender::send(std::string_view data) {
-    if (!socket_.is_open()) {
+asio::awaitable<void> TcpSender::send(ConstDataBlock data) {
+    if (!socket_.is_open() || data.empty()) {
         co_return;
     }
-    co_await socket_.async_send(asio::buffer(data), asio::use_awaitable);
+    co_await socket_.async_send(asio::buffer(static_cast<const void*>(data.data()), data.size()),
+                                asio::use_awaitable);
 }
 } // namespace core::net::io

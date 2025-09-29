@@ -32,10 +32,15 @@ UdpReceiver::UdpReceiver(Executor& executor,
     }
 }
 
-asio::awaitable<size_t> UdpReceiver::receive(std::span<char>& buffer) {
-    std::size_t bytes_received = co_await socket_.async_receive(asio::buffer(buffer),
+asio::awaitable<std::size_t> UdpReceiver::receive(MutDataBlock& buffer) {
+    if (buffer.empty()) {
+        co_return 0;
+    }
+    std::size_t bytes_received = co_await socket_.async_receive(asio::buffer(static_cast<void*>(
+                                                                                 buffer.data()),
+                                                                             buffer.size()),
                                                                 asio::use_awaitable);
-    buffer = buffer.subspan(0, bytes_received);
+    buffer = buffer.first(bytes_received);
     co_return bytes_received;
 }
 } // namespace core::net::io

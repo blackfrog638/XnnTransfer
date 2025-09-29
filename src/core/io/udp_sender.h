@@ -1,8 +1,10 @@
 #pragma once
 
 #include "core/executor.h"
+#include "core/io/data_block.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
+#include <string_view>
 
 namespace core::net::io {
 class UdpSender {
@@ -16,7 +18,7 @@ class UdpSender {
     UdpSender(const UdpSender&) = delete;
     UdpSender& operator=(const UdpSender&) = delete;
 
-    asio::awaitable<void> send_to(std::string_view data, std::string_view host, uint16_t port);
+    asio::awaitable<void> send_to(ConstDataBlock data, std::string_view host, uint16_t port);
 
   private:
     Executor& executor_;

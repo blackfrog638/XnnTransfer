@@ -9,13 +9,15 @@ TcpReceiver::TcpReceiver(Executor& executor, asio::ip::tcp::socket& socket, std:
     executor_.spawn(acceptor_.accept());
 }
 
-asio::awaitable<void> TcpReceiver::receive(std::span<char>& buffer) {
-    if (!socket_.is_open()) {
+asio::awaitable<void> TcpReceiver::receive(MutDataBlock& buffer) {
+    if (!socket_.is_open() || buffer.empty()) {
         co_return;
     }
-    std::size_t bytes_received = co_await socket_.async_receive(asio::buffer(buffer),
+    std::size_t bytes_received = co_await socket_.async_receive(asio::buffer(static_cast<void*>(
+                                                                                 buffer.data()),
+                                                                             buffer.size()),
                                                                 asio::use_awaitable);
-    buffer = buffer.subspan(0, bytes_received);
+    buffer = buffer.first(bytes_received);
     co_return;
 }
 

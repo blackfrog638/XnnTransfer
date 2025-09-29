@@ -2,9 +2,9 @@
 
 #include "core/acceptor.h"
 #include "core/executor.h"
+#include "core/io/data_block.h"
 #include <asio/ip/tcp.hpp>
 #include <cstdint>
-#include <span>
 
 namespace core::net::io {
 class TcpReceiver {
@@ -15,7 +15,7 @@ class TcpReceiver {
     TcpReceiver(const TcpReceiver&) = delete;
     TcpReceiver& operator=(const TcpReceiver&) = delete;
 
-    asio::awaitable<void> receive(std::span<char>& buffer);
+    asio::awaitable<void> receive(MutDataBlock& buffer);
 
   private:
     Executor& executor_;

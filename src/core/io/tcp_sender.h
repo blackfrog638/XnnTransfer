@@ -2,8 +2,10 @@
 
 #include "core/connector.h"
 #include "core/executor.h"
+#include "core/io/data_block.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
+#include <string_view>
 
 namespace core::net::io {
 class TcpSender {
@@ -21,7 +23,7 @@ class TcpSender {
     TcpSender(const TcpSender&) = delete;
     TcpSender& operator=(const TcpSender&) = delete;
 
-    asio::awaitable<void> send(std::string_view data);
+    asio::awaitable<void> send(ConstDataBlock data);
 
   private:
     Executor& executor_;

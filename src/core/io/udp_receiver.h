@@ -1,11 +1,11 @@
 #pragma once
 
 #include "core/executor.h"
+#include "core/io/data_block.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 namespace core::net::io {
@@ -25,7 +25,7 @@ class UdpReceiver {
     UdpReceiver(const UdpReceiver&) = delete;
     UdpReceiver& operator=(const UdpReceiver&) = delete;
 
-    asio::awaitable<size_t> receive(std::span<char>& buffer);
+    asio::awaitable<std::size_t> receive(MutDataBlock& buffer);
 
   private:
     Executor& executor_;

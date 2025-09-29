@@ -5,6 +5,7 @@
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <future>
 #include <gtest/gtest.h>
@@ -28,8 +29,8 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
                                         kPort);
     core::net::io::UdpSender sender(executor, sender_socket);
 
-    std::array<char, 256> buffer{};
-    std::span<char> buffer_span(buffer.data(), buffer.size());
+    std::array<std::byte, 256> buffer{};
+    core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
     std::promise<std::size_t> bytes_ready;
     auto bytes_future = bytes_ready.get_future();
 
@@ -41,17 +42,24 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
         co_return;
     });
 
-    const std::string payload = "udp-hello";
-    executor.spawn(sender.send_to(payload, "127.0.0.1", kPort));
+    const std::string payload_text = "udp-hello";
+    executor.spawn([&sender, payload_text, kPort]() -> asio::awaitable<void> {
+        auto payload = std::as_bytes(
+            std::span<const char>(payload_text.data(), payload_text.size()));
+        co_await sender.send_to(payload, "127.0.0.1", kPort);
+        co_return;
+    }());
 
     std::jthread runner([&executor]() { executor.start(); });
 
     ASSERT_EQ(bytes_future.wait_for(2s), std::future_status::ready);
     const auto bytes = bytes_future.get();
 
-    EXPECT_EQ(bytes, payload.size());
-    EXPECT_EQ(buffer_span.size(), payload.size());
-    EXPECT_EQ(std::string_view(buffer_span.data(), buffer_span.size()), payload);
+    EXPECT_EQ(bytes, payload_text.size());
+    EXPECT_EQ(buffer_span.size(), payload_text.size());
+    EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(buffer_span.data()),
+                               buffer_span.size()),
+              payload_text);
 
     const auto sender_local_endpoint = sender_socket.local_endpoint();
     EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v4::loopback());
