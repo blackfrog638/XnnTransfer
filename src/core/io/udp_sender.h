@@ -4,8 +4,11 @@
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
 
-namespace core::net {
+namespace core::net::io {
 class UdpSender {
+    // the UDP sender does not maintain a persistent connection.
+    // it creates a UDP socket and binds it to a random port on localhost.
+    // so the UDP sender can be used to send datagrams to different addresses and ports.
   public:
     explicit UdpSender(Executor& executor, asio::ip::udp::socket& socket);
     ~UdpSender() = default;
@@ -19,4 +22,4 @@ class UdpSender {
     Executor& executor_;
     asio::ip::udp::socket& socket_;
 };
-} // namespace core::net
+} // namespace core::net::io

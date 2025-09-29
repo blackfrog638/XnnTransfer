@@ -26,7 +26,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
                                         receiver_socket,
                                         asio::ip::make_address("127.0.0.1"),
                                         kPort);
-    core::net::UdpSender sender(executor, sender_socket);
+    core::net::io::UdpSender sender(executor, sender_socket);
 
     std::array<char, 256> buffer{};
     std::span<char> buffer_span(buffer.data(), buffer.size());

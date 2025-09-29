@@ -6,10 +6,10 @@
 #include <asio/redirect_error.hpp>
 #include <asio/use_awaitable.hpp>
 
-namespace core {
+namespace core::net {
 asio::awaitable<void> Connector::connect(std::string_view host, std::uint16_t port) {
     asio::ip::tcp::endpoint endpoint(asio::ip::make_address(host.data()), port);
-    executor_.spawn(socket_.async_connect(endpoint, asio::use_awaitable));
+    co_await socket_.async_connect(endpoint, asio::use_awaitable);
     co_return;
 }
 
@@ -20,4 +20,4 @@ void Connector::disconnect() {
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both);
     socket_.close();
 }
-} // namespace core
+} // namespace core::net

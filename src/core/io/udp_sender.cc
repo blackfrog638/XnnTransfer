@@ -1,6 +1,6 @@
 #include "udp_sender.h"
 
-namespace core::net {
+namespace core::net::io {
 UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {
@@ -15,4 +15,4 @@ asio::awaitable<void> UdpSender::send_to(const std::string_view data,
     executor_.spawn(socket_.async_send_to(asio::buffer(data), endpoint, asio::use_awaitable));
     co_return;
 }
-} // namespace core::net
+} // namespace core::net::io

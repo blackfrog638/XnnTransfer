@@ -42,8 +42,8 @@ TEST(ConnectionTest, CoreNetworkingTest) {
     core::Executor executor;
     asio::ip::tcp::socket server_socket(executor.get_io_context());
     asio::ip::tcp::socket client_socket(executor.get_io_context());
-    core::Acceptor acceptor(executor, server_socket);
-    core::Connector connector(executor, client_socket);
+    core::net::Acceptor acceptor(executor, server_socket);
+    core::net::Connector connector(executor, client_socket);
 
     constexpr std::uint16_t kPort = 39001;
     acceptor.listen(kPort);

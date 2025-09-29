@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace core {
+namespace core::net {
 class Connector {
   public:
     explicit Connector(Executor& executor, asio::ip::tcp::socket& socket)
@@ -24,4 +24,4 @@ class Connector {
     Executor& executor_;
     asio::ip::tcp::socket& socket_;
 };
-} // namespace core
+} // namespace core::net

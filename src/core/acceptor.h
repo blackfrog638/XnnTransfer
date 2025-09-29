@@ -5,7 +5,7 @@
 #include <asio/ip/tcp.hpp>
 #include <cstdint>
 
-namespace core {
+namespace core::net {
 class Acceptor {
   public:
     explicit Acceptor(Executor& executor, asio::ip::tcp::socket& socket)
@@ -23,4 +23,4 @@ class Acceptor {
     asio::ip::tcp::acceptor acceptor_;
     asio::ip::tcp::socket& socket_;
 };
-} // namespace core
+} // namespace core::net
