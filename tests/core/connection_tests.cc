@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-TEST(ExecutorTest, SpawnExecutesCoroutine) {
+TEST(ConnectionTest, ExecutorTest) {
     core::Executor executor;
     std::promise<void> done;
     auto future = done.get_future();
@@ -38,7 +38,7 @@ TEST(ExecutorTest, SpawnExecutesCoroutine) {
     }
 }
 
-TEST(CoreNetworkingTest, ConnectorAndAcceptor) {
+TEST(ConnectionTest, CoreNetworkingTest) {
     core::Executor executor;
     asio::ip::tcp::socket server_socket(executor.get_io_context());
     asio::ip::tcp::socket client_socket(executor.get_io_context());
