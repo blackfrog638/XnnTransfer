@@ -2,7 +2,9 @@
 
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
+#include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
+#include <optional>
 #include <thread>
 
 namespace core {
@@ -27,6 +29,7 @@ class Executor {
 
   private:
     asio::io_context io_context_;
+    std::optional<asio::executor_work_guard<asio::io_context::executor_type>> work_guard_{};
     size_t concurrency_ = std::thread::hardware_concurrency();
     std::atomic<bool> running_{false};
 };
