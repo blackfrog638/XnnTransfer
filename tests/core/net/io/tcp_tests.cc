@@ -1,7 +1,7 @@
 
 #include "core/executor.h"
-#include "core/io/tcp_receiver.h"
-#include "core/io/tcp_sender.h"
+#include "core/net/io/tcp_receiver.h"
+#include "core/net/io/tcp_sender.h"
 #include <array>
 #include <asio/awaitable.hpp>
 #include <asio/error_code.hpp>

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/connector.h"
 #include "core/executor.h"
-#include "core/io/data_block.h"
+#include "core/net/connector.h"
+#include "core/net/io/data_block.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
 #include <string_view>

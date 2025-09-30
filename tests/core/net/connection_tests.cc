@@ -1,6 +1,6 @@
-#include "core/acceptor.h"
-#include "core/connector.h"
 #include "core/executor.h"
+#include "core/net/acceptor.h"
+#include "core/net/connector.h"
 #include <array>
 #include <asio/awaitable.hpp>
 #include <asio/co_spawn.hpp>
@@ -9,7 +9,6 @@
 #include <asio/read.hpp>
 #include <asio/write.hpp>
 #include <chrono>
-#include <future>
 #include <gtest/gtest.h>
 #include <string_view>
 #include <thread>
@@ -17,28 +16,7 @@
 using namespace std::chrono_literals;
 
 namespace {
-
-TEST(ConnectionTest, ExecutorTest) {
-    core::Executor executor;
-    std::promise<void> done;
-    auto future = done.get_future();
-
-    executor.spawn([&done]() -> asio::awaitable<void> {
-        done.set_value();
-        co_return;
-    });
-
-    std::jthread runner([&executor]() { executor.start(); });
-
-    ASSERT_EQ(future.wait_for(500ms), std::future_status::ready);
-
-    executor.stop();
-    if (runner.joinable()) {
-        runner.join();
-    }
-}
-
-TEST(ConnectionTest, CoreNetworkingTest) {
+TEST(ConnectionTest, CoreNetworkTest) {
     core::Executor executor;
     asio::ip::tcp::socket server_socket(executor.get_io_context());
     asio::ip::tcp::socket client_socket(executor.get_io_context());
@@ -109,8 +87,3 @@ TEST(ConnectionTest, CoreNetworkingTest) {
 }
 
 } // namespace
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
