@@ -7,7 +7,7 @@ add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest")
 
 target("XnnTransfer")
     set_kind("binary")
-    add_files("src/cli/main.cpp")
+    add_files("src/**.cc")
     add_packages("fmt", "spdlog", "nlohmann_json", "asio")
 
     if is_mode("debug") then
@@ -22,9 +22,9 @@ target("XnnTransfer")
 target("tests")
     set_kind("binary")
     set_default(false)
-    add_files("src/core/**.cc")
-    add_files("tests/core/**.cc")
-    add_packages("asio", "gtest")
+    add_files("src/**.cc")
+    add_files("tests/**.cc")
+    add_packages("asio", "spdlog", "gtest")
 
     if is_plat("windows") then
         add_syslinks("ws2_32", "iphlpapi")

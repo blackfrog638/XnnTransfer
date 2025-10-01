@@ -1,4 +1,5 @@
 #include "executor.h"
+#include <spdlog/spdlog.h>
 
 namespace core {
 void Executor::start() {
