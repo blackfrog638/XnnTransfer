@@ -1,4 +1,5 @@
 #include "acceptor.h"
+#include "spdlog/spdlog.h"
 #include <asio/use_awaitable.hpp>
 
 namespace core::net {
@@ -15,6 +16,8 @@ asio::awaitable<void> Acceptor::accept() {
         socket_.close();
     }
     co_await acceptor_.async_accept(socket_, asio::use_awaitable);
+    const auto endpoint = socket_.remote_endpoint();
+    spdlog::debug("Connection accepted from {}:{}", endpoint.address().to_string(), endpoint.port());
     co_return;
 }
 
@@ -22,5 +25,7 @@ void Acceptor::refuse() {
     if (socket_.is_open()) {
         socket_.close();
     }
+    const auto endpoint = socket_.remote_endpoint();
+    spdlog::debug("Connection refused from {}:{}", endpoint.address().to_string(), endpoint.port());
 }
 } // namespace core::net

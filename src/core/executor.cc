@@ -12,6 +12,7 @@ void Executor::start() {
     io_context_.restart();
     io_context_.run();
     running_.store(false, std::memory_order_release);
+    spdlog::info("Executor started. ");
 }
 
 void Executor::stop() {
@@ -22,6 +23,7 @@ void Executor::stop() {
         work_guard_.reset();
     }
     io_context_.stop();
+    spdlog::info("Executor stopped. ");
 }
 
 void Executor::restart() {

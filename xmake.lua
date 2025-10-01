@@ -24,7 +24,7 @@ target("tests")
     set_default(false)
     add_files("src/**.cc")
     add_files("tests/**.cc")
-    add_packages("asio", "spdlog", "gtest")
+    add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio")
 
     if is_plat("windows") then
         add_syslinks("ws2_32", "iphlpapi")

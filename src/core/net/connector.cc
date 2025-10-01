@@ -5,11 +5,13 @@
 #include <asio/ip/tcp.hpp>
 #include <asio/redirect_error.hpp>
 #include <asio/use_awaitable.hpp>
+#include <spdlog/spdlog.h>
 
 namespace core::net {
 asio::awaitable<void> Connector::connect(std::string_view host, std::uint16_t port) {
     asio::ip::tcp::endpoint endpoint(asio::ip::make_address(host.data()), port);
     co_await socket_.async_connect(endpoint, asio::use_awaitable);
+    spdlog::debug("Connected to {}:{}", host, port);
     co_return;
 }
 
@@ -19,5 +21,6 @@ void Connector::disconnect() {
     }
     socket_.shutdown(asio::ip::tcp::socket::shutdown_both);
     socket_.close();
+    spdlog::debug("Disconnected. ");
 }
 } // namespace core::net
