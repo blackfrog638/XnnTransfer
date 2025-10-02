@@ -35,7 +35,7 @@ jobs:
             ${{ runner.os }}-${{ matrix.config }}-
 
       - name: Configure project
-        run: xmake f -y --config=${{ matrix.config }}
+        run: xmake f -y -m ${{ matrix.config }}
 
       - name: Build XnnTransfer
         run: xmake build -y XnnTransfer
