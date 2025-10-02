@@ -5,6 +5,7 @@
 #include <array>
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
+#include <asio/use_future.hpp>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -33,29 +34,32 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
 
     std::array<std::byte, 256> buffer{};
     core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
-    std::promise<std::size_t> bytes_ready;
-    auto bytes_future = bytes_ready.get_future();
 
-    executor.spawn([&receiver,
-                    &buffer_span,
-                    promise = std::move(bytes_ready)]() mutable -> asio::awaitable<void> {
-        const auto bytes = co_await receiver.receive(buffer_span);
-        promise.set_value(bytes);
-        co_return;
-    });
+    auto receive_future = asio::co_spawn(
+        executor.get_io_context(),
+        [&receiver, &buffer_span]() -> asio::awaitable<std::size_t> {
+            co_return co_await receiver.receive(buffer_span);
+        },
+        asio::use_future);
 
     const std::string payload_text = "udp-hello";
-    executor.spawn([&sender, payload_text, kPort]() -> asio::awaitable<void> {
-        auto payload = std::as_bytes(
-            std::span<const char>(payload_text.data(), payload_text.size()));
-        co_await sender.send_to(payload, "127.0.0.1", kPort);
-        co_return;
-    }());
+    auto send_future = asio::co_spawn(
+        executor.get_io_context(),
+        [&sender, payload = std::string(payload_text), kPort]() mutable -> asio::awaitable<void> {
+            auto payload_span = std::span<const char>(payload.data(), payload.size());
+            auto payload_bytes = std::as_bytes(payload_span);
+            co_await sender.send_to(payload_bytes, "127.0.0.1", kPort);
+            co_return;
+        },
+        asio::use_future);
 
     std::thread runner([&executor]() { executor.start(); });
 
-    ASSERT_EQ(bytes_future.wait_for(2s), std::future_status::ready);
-    const auto bytes = bytes_future.get();
+    ASSERT_EQ(receive_future.wait_for(2s), std::future_status::ready);
+    const auto bytes = receive_future.get();
+
+    ASSERT_EQ(send_future.wait_for(2s), std::future_status::ready);
+    ASSERT_NO_THROW(send_future.get());
 
     EXPECT_EQ(bytes, payload_text.size());
     EXPECT_EQ(buffer_span.size(), payload_text.size());

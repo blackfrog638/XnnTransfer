@@ -17,7 +17,7 @@ TEST(CoroutineTest, ExecutorTest) {
         co_return;
     });
 
-    std::jthread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() { executor.start(); });
 
     ASSERT_EQ(future.wait_for(500ms), std::future_status::ready);
 
@@ -40,7 +40,7 @@ TEST(CoroutineTest, TimerTest) {
         },
         100);
 
-    std::jthread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() { executor.start(); });
 
     ASSERT_EQ(future.wait_for(500ms), std::future_status::ready);
 

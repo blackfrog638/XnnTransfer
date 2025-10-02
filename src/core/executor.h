@@ -27,6 +27,13 @@ class Executor {
         return asio::co_spawn(io_context_, std::forward<Awaitable>(awaitable), asio::detached);
     }
 
+    template<typename Awaitable, typename CompletionToken>
+    auto spawn(Awaitable&& awaitable, CompletionToken&& token) {
+        return asio::co_spawn(io_context_,
+                              std::forward<Awaitable>(awaitable),
+                              std::forward<CompletionToken>(token));
+    }
+
   private:
     asio::io_context io_context_;
     std::optional<asio::executor_work_guard<asio::io_context::executor_type>> work_guard_{};
