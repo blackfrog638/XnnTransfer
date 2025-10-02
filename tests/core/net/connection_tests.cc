@@ -1,3 +1,4 @@
+#include "../test_timeout.h"
 #include "core/executor.h"
 #include "core/net/acceptor.h"
 #include "core/net/connector.h"
@@ -13,6 +14,7 @@
 #include <string_view>
 #include <thread>
 
+
 using namespace std::chrono_literals;
 
 namespace {
@@ -22,6 +24,7 @@ TEST(ConnectionTest, CoreNetworkTest) {
     asio::ip::tcp::socket client_socket(executor.get_io_context());
     core::net::Acceptor acceptor(executor, server_socket);
     core::net::Connector connector(executor, client_socket);
+    test_utils::TimeoutGuard timeout_guard(executor, 10s);
 
     constexpr std::uint16_t kPort = 39001;
     acceptor.listen(kPort);
@@ -80,6 +83,8 @@ TEST(ConnectionTest, CoreNetworkTest) {
     server_socket.write_some(asio::buffer(dummy), server_ec);
     EXPECT_TRUE(server_ec);
 
+    timeout_guard.cancel();
+    EXPECT_EQ(false, timeout_guard.timed_out());
     executor.stop();
     if (runner.joinable()) {
         runner.join();

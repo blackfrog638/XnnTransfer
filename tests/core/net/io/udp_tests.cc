@@ -1,3 +1,4 @@
+#include "../../test_timeout.h"
 #include "core/executor.h"
 #include "core/net/io/udp_receiver.h"
 #include "core/net/io/udp_sender.h"
@@ -14,6 +15,7 @@
 #include <string_view>
 #include <thread>
 
+
 using namespace std::chrono_literals;
 
 namespace {
@@ -28,6 +30,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
                                         asio::ip::make_address("127.0.0.1"),
                                         kPort);
     core::net::io::UdpSender sender(executor, sender_socket);
+    test_utils::TimeoutGuard timeout_guard(executor, 5s);
 
     std::array<std::byte, 256> buffer{};
     core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
@@ -65,6 +68,8 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
     EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v4::loopback());
     EXPECT_NE(sender_local_endpoint.port(), 0);
 
+    timeout_guard.cancel();
+    EXPECT_EQ(false, timeout_guard.timed_out());
     executor.stop();
     if (runner.joinable()) {
         runner.join();

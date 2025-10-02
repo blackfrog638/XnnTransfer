@@ -1,4 +1,5 @@
 
+#include "../../test_timeout.h"
 #include "core/executor.h"
 #include "core/net/io/tcp_receiver.h"
 #include "core/net/io/tcp_sender.h"
@@ -14,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+
 
 using namespace std::chrono_literals;
 
@@ -63,6 +65,7 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
     std::atomic_bool received{false};
     std::atomic_bool send_done{false};
     std::atomic_bool receive_error{false};
+    test_utils::TimeoutGuard timeout_guard(executor, 5s);
 
     executor.spawn([&receiver, &buffer_span, &received_payload, &received, &receive_error]()
                        -> asio::awaitable<void> {
@@ -99,6 +102,8 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
                                buffer_span.size()),
               payload_text);
 
+    timeout_guard.cancel();
+    EXPECT_EQ(false, timeout_guard.timed_out());
     executor.stop();
     if (runner.joinable()) {
         runner.join();

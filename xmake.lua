@@ -1,3 +1,5 @@
+set_project("XnnTransfer")
+
 add_rules("mode.debug", "mode.release")
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
 
@@ -22,10 +24,16 @@ target("XnnTransfer")
 target("tests")
     set_kind("binary")
     set_default(false)
+
+    add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio")
+    add_tests("default")
+
     add_files("src/**.cc")
     add_files("tests/**.cc")
-    add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio")
+    remove_files("src/cli/main.cc")
+    add_links("gtest_main")
 
     if is_plat("windows") then
         add_syslinks("ws2_32", "iphlpapi")
+        add_ldflags("/WHOLEARCHIVE:gtest_main.lib", {force = true})
     end
