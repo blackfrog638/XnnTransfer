@@ -1,40 +1,54 @@
-name: CI
+name: XnnTransfer CI
 
 on:
   push:
-    branches:
-      - main
-      - dev
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - "*"
+    branches: [ "main" ]
 
 jobs:
-  build-and-test:
-    name: Build and test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  build:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        config: [debug, release]
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4 # 更新到 v4
 
-      - name: Install build essentials (Ubuntu)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential ninja-build
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
 
-      - name: Set up XMake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
+    - name: Cache xmake packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.xmake/packages
+        key: ${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('xmake.lua') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.config }}-
 
-      - name: Configure project
-        run: xmake config --mode=release
+    - name: Configure project
+      run: xmake f -y --config=${{ matrix.config }}
 
-      - name: Build unit tests
-        run: xmake build tests
+    - name: Build XnnTransfer
+      run: xmake build -y XnnTransfer
 
-      - name: Run unit tests
-        run: xmake run tests
+    - name: Build tests
+      run: xmake build -y tests
+
+    - name: Run tests
+      run: xmake test -y
+
+    # - name: Upload artifacts
+    #   if: matrix.config == 'release'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: XnnTransfer-${{ matrix.os }}-release
+    #     path: |
+    #       build/**/XnnTransfer.exe
+    #       build/**/XnnTransfer
+    #       !build/**/tests*
