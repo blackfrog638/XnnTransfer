@@ -15,40 +15,40 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4 # 更新到 v4
+      - name: Checkout repository
+        uses: actions/checkout@v4 # 更新到 v4
 
-    - name: Setup xmake
-      uses: xmake-io/github-action-setup-xmake@v1
-      with:
-        xmake-version: latest
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
 
-    - name: Cache xmake packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.xmake/packages
-        key: ${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('xmake.lua') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ matrix.config }}-
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.xmake/packages
+          key: ${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('xmake.lua') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.config }}-
 
-    - name: Configure project
-      run: xmake f -y --config=${{ matrix.config }}
+      - name: Configure project
+        run: xmake f -y --config=${{ matrix.config }}
 
-    - name: Build XnnTransfer
-      run: xmake build -y XnnTransfer
+      - name: Build XnnTransfer
+        run: xmake build -y XnnTransfer
 
-    - name: Build tests
-      run: xmake build -y tests
+      - name: Build tests
+        run: xmake build -y tests
 
-    - name: Run tests
-      run: xmake test -y
+      - name: Run tests
+        run: xmake test -y
 
-    # - name: Upload artifacts
-    #   if: matrix.config == 'release'
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: XnnTransfer-${{ matrix.os }}-release
-    #     path: |
-    #       build/**/XnnTransfer.exe
-    #       build/**/XnnTransfer
-    #       !build/**/tests*
+      # - name: Upload artifacts
+      #   if: matrix.config == 'release'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: XnnTransfer-${{ matrix.os }}-release
+      #     path: |
+      #       build/**/XnnTransfer.exe
+      #       build/**/XnnTransfer
+      #       !build/**/tests*
