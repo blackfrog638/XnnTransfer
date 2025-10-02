@@ -15,7 +15,6 @@
 #include <string_view>
 #include <thread>
 
-
 using namespace std::chrono_literals;
 
 namespace {
@@ -53,7 +52,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
         co_return;
     }());
 
-    std::jthread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() { executor.start(); });
 
     ASSERT_EQ(bytes_future.wait_for(2s), std::future_status::ready);
     const auto bytes = bytes_future.get();

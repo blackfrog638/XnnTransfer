@@ -14,7 +14,6 @@
 #include <string_view>
 #include <thread>
 
-
 using namespace std::chrono_literals;
 
 namespace {
@@ -32,7 +31,7 @@ TEST(ConnectionTest, CoreNetworkTest) {
     executor.spawn(acceptor.accept());
     executor.spawn(connector.connect("127.0.0.1", kPort));
 
-    std::jthread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() { executor.start(); });
 
     auto wait_until = [](auto&& condition) {
         const auto deadline = std::chrono::steady_clock::now() + 1s;

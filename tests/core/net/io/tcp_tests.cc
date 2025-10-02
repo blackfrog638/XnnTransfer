@@ -16,7 +16,6 @@
 #include <string_view>
 #include <thread>
 
-
 using namespace std::chrono_literals;
 
 namespace {
@@ -42,7 +41,7 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
     core::net::io::TcpReceiver receiver(executor, receiver_socket, kPort);
     core::net::io::TcpSender sender(executor, sender_socket, "127.0.0.1", kPort);
 
-    std::jthread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() { executor.start(); });
 
     ASSERT_TRUE(wait_until([&sender_socket]() { return sender_socket.is_open(); }));
     ASSERT_TRUE(wait_until([&receiver_socket]() { return receiver_socket.is_open(); }));
