@@ -21,18 +21,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install modern compiler on macOS (GCC 13 with full C++20 support)
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      # Install modern compiler on macOS AFTER xmake is installed
       - name: Install GCC on macOS
         if: runner.os == 'macOS'
         run: |
           brew install gcc@13
           echo "CC=$(brew --prefix gcc@13)/bin/gcc-13" >> $GITHUB_ENV
           echo "CXX=$(brew --prefix gcc@13)/bin/g++-13" >> $GITHUB_ENV
-
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
 
       - name: Cache xmake packages
         uses: actions/cache@v4
