@@ -44,14 +44,4 @@ jobs:
         run: xmake build -y tests
 
       - name: Run tests
-        run: xmake test -y
-
-      # - name: Upload artifacts
-      #   if: matrix.config == 'release'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: XnnTransfer-${{ matrix.os }}-release
-      #     path: |
-      #       build/**/XnnTransfer.exe
-      #       build/**/XnnTransfer
-      #       !build/**/tests*
+        run: xmake run tests

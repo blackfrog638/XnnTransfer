@@ -1,15 +1,19 @@
-#include "../test_timeout.h"
 #include "core/executor.h"
 #include "core/net/acceptor.h"
 #include "core/net/connector.h"
+#include "core/time_out_guard.h"
 #include <array>
 #include <asio/awaitable.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/error_code.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/read.hpp>
+#include <asio/steady_timer.hpp>
+#include <asio/use_awaitable.hpp>
+#include <asio/use_future.hpp>
 #include <asio/write.hpp>
 #include <chrono>
+#include <future>
 #include <gtest/gtest.h>
 #include <string_view>
 #include <thread>
@@ -23,7 +27,6 @@ TEST(ConnectionTest, CoreNetworkTest) {
     asio::ip::tcp::socket client_socket(executor.get_io_context());
     core::net::Acceptor acceptor(executor, server_socket);
     core::net::Connector connector(executor, client_socket);
-    test_utils::TimeoutGuard timeout_guard(executor, 10s);
 
     constexpr std::uint16_t kPort = 39001;
     acceptor.listen(kPort);
@@ -33,19 +36,27 @@ TEST(ConnectionTest, CoreNetworkTest) {
 
     std::thread runner([&executor]() { executor.start(); });
 
-    auto wait_until = [](auto&& condition) {
-        const auto deadline = std::chrono::steady_clock::now() + 1s;
-        while (!condition()) {
-            if (std::chrono::steady_clock::now() >= deadline) {
-                return false;
-            }
-            std::this_thread::sleep_for(10ms);
-        }
-        return true;
-    };
+    // Wait for connections to establish using spawn_with_timeout
+    auto connection_future = executor.spawn(
+        [&]() -> asio::awaitable<bool> {
+            // Wait for both sockets to open
+            bool wait_success = co_await core::timer::spawn_with_timeout(
+                [&]() -> asio::awaitable<void> {
+                    while (!client_socket.is_open() || !server_socket.is_open()) {
+                        asio::steady_timer timer(co_await asio::this_coro::executor);
+                        timer.expires_after(10ms);
+                        co_await timer.async_wait(asio::use_awaitable);
+                    }
+                }(),
+                2s);
 
-    ASSERT_TRUE(wait_until([&client_socket]() { return client_socket.is_open(); }));
-    ASSERT_TRUE(wait_until([&server_socket]() { return server_socket.is_open(); }));
+            co_return wait_success;
+        },
+        asio::use_future);
+
+    ASSERT_EQ(connection_future.wait_for(3s), std::future_status::ready)
+        << "Connection establishment timed out";
+    ASSERT_TRUE(connection_future.get()) << "Sockets failed to open within timeout";
 
     std::array<char, 4> payload{'p', 'i', 'n', 'g'};
     asio::write(client_socket, asio::buffer(payload));
@@ -82,8 +93,6 @@ TEST(ConnectionTest, CoreNetworkTest) {
     server_socket.write_some(asio::buffer(dummy), server_ec);
     EXPECT_TRUE(server_ec);
 
-    timeout_guard.cancel();
-    EXPECT_EQ(false, timeout_guard.timed_out());
     executor.stop();
     if (runner.joinable()) {
         runner.join();

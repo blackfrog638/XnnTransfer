@@ -1,15 +1,16 @@
 
-#include "../../test_timeout.h"
 #include "core/executor.h"
 #include "core/net/io/tcp_receiver.h"
 #include "core/net/io/tcp_sender.h"
+#include "core/time_out_guard.h"
 #include <array>
 #include <asio/awaitable.hpp>
 #include <asio/error_code.hpp>
 #include <asio/ip/tcp.hpp>
-#include <atomic>
+#include <asio/use_future.hpp>
 #include <chrono>
 #include <cstddef>
+#include <future>
 #include <gtest/gtest.h>
 #include <span>
 #include <string>
@@ -43,70 +44,35 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
 
     std::thread runner([&executor]() { executor.start(); });
 
-    ASSERT_TRUE(wait_until([&sender_socket]() { return sender_socket.is_open(); }));
-    ASSERT_TRUE(wait_until([&receiver_socket]() { return receiver_socket.is_open(); }));
-
-    asio::error_code ec;
-    ASSERT_TRUE(wait_until([&]() {
-        ec.clear();
-        sender_socket.remote_endpoint(ec);
-        return !ec;
-    }));
-    ASSERT_TRUE(wait_until([&]() {
-        ec.clear();
-        receiver_socket.remote_endpoint(ec);
-        return !ec;
-    }));
-
     std::array<std::byte, 256> buffer{};
     core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
-    std::string received_payload;
-    std::atomic_bool received{false};
-    std::atomic_bool send_done{false};
-    std::atomic_bool receive_error{false};
-    test_utils::TimeoutGuard timeout_guard(executor, 5s);
-
-    executor.spawn([&receiver, &buffer_span, &received_payload, &received, &receive_error]()
-                       -> asio::awaitable<void> {
-        try {
-            co_await receiver.receive(buffer_span);
-            received_payload.assign(reinterpret_cast<const char*>(buffer_span.data()),
-                                    buffer_span.size());
-            received.store(true, std::memory_order_release);
-        } catch (...) {
-            receive_error.store(true, std::memory_order_release);
-        }
-        co_return;
-    });
-
     const std::string payload_text = "tcp-hello";
-    executor.spawn([&sender, payload_text, &send_done]() -> asio::awaitable<void> {
-        auto payload = std::as_bytes(
-            std::span<const char>(payload_text.data(), payload_text.size()));
-        co_await sender.send(payload);
-        send_done.store(true, std::memory_order_release);
-        co_return;
-    });
 
-    ASSERT_TRUE(wait_until([&send_done]() { return send_done.load(std::memory_order_acquire); },
-                           10ms,
-                           3000ms));
-    ASSERT_FALSE(receive_error.load(std::memory_order_acquire));
-    ASSERT_TRUE(wait_until([&received]() { return received.load(std::memory_order_acquire); },
-                           10ms,
-                           3000ms));
+    auto test_future = executor.spawn(
+        [&]() -> asio::awaitable<bool> {
+            auto payload = std::as_bytes(
+                std::span<const char>(payload_text.data(), payload_text.size()));
+            co_await sender.send(payload);
+            bool receive_success = co_await core::timer::spawn_with_timeout(receiver.receive(
+                                                                                buffer_span),
+                                                                            3s);
+            co_return receive_success;
+        },
+        asio::use_future);
+
+    ASSERT_EQ(test_future.wait_for(5s), std::future_status::ready) << "TCP test timed out";
+    ASSERT_TRUE(test_future.get()) << "TCP test failed or timed out within coroutine";
+
+    std::string received_payload(reinterpret_cast<const char*>(buffer_span.data()),
+                                 buffer_span.size());
     EXPECT_EQ(received_payload, payload_text);
-    EXPECT_EQ(buffer_span.size(), payload_text.size());
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(buffer_span.data()),
                                buffer_span.size()),
               payload_text);
 
-    timeout_guard.cancel();
-    EXPECT_EQ(false, timeout_guard.timed_out());
     executor.stop();
     if (runner.joinable()) {
         runner.join();
     }
 }
-
 } // namespace
