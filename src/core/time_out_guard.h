@@ -15,6 +15,7 @@ namespace core::timer {
 
 using namespace asio::experimental::awaitable_operators;
 
+// Primary template for non-void return types
 template<typename Awaitable>
     requires(!std::is_void_v<typename Awaitable::value_type>)
 inline auto spawn_with_timeout(Awaitable awaitable_task, std::chrono::steady_clock::duration timeout)

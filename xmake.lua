@@ -7,6 +7,14 @@ set_languages("c++20")
 add_includedirs("src")
 add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest")
 
+-- Force using modern compilers on macOS
+if is_plat("macosx") then
+    -- Try to use Homebrew's GCC or LLVM instead of Apple Clang
+    set_toolchains("gcc", "clang")
+    -- Enable full C++20 support
+    add_cxxflags("-std=c++20", "-fconcepts")
+end
+
 target("XnnTransfer")
     set_kind("binary")
     add_files("src/**.cc")
