@@ -4,10 +4,8 @@ add_rules("mode.debug", "mode.release")
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
 
 set_languages("c++20")
-add_includedirs("src", "build")
+add_includedirs("src", "$(builddir)")
 add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest", "protobuf-cpp")
-
-add_rules("protobuf.cpp")
 
 if is_plat("macosx") then
     set_toolchains("gcc", "clang")
@@ -16,8 +14,9 @@ end
 
 target("XnnTransfer")
     set_kind("binary")
+    add_rules("protobuf.cpp")
     add_files("src/**.cc")
-    add_files("proto/**.proto", {rules = "protobuf.cpp"})
+    add_files("proto/*.proto")
     add_packages("fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp")
 
     if is_mode("debug") then
@@ -32,12 +31,13 @@ target("XnnTransfer")
 target("tests")
     set_kind("binary")
     set_default(false)
+    add_rules("protobuf.cpp")
 
     add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp")
     add_tests("default")
 
     add_files("src/**.cc")
-    add_files("proto/**.proto", {rules = "protobuf.cpp"})
+    add_files("proto/*.proto")
     add_files("tests/**.cc")
     remove_files("src/cli/main.cc")
     add_links("gtest_main")
