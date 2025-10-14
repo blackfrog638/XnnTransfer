@@ -3,8 +3,11 @@
 #include "core/executor.h"
 #include "core/net/acceptor.h"
 #include "core/net/io/data_block.h"
+#include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/steady_timer.hpp>
 #include <cstdint>
+#include <memory>
 
 namespace core::net::io {
 class TcpReceiver {
@@ -15,11 +18,14 @@ class TcpReceiver {
     TcpReceiver(const TcpReceiver&) = delete;
     TcpReceiver& operator=(const TcpReceiver&) = delete;
 
+    void start_accept();
     asio::awaitable<void> receive(MutDataBlock& buffer);
 
   private:
     Executor& executor_;
     asio::ip::tcp::socket& socket_;
     core::net::Acceptor acceptor_;
+    std::shared_ptr<asio::steady_timer> accept_signal_;
+    std::atomic<bool> accepted_{false};
 };
 } //namespace core::net::io

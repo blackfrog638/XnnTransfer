@@ -1,5 +1,10 @@
 CompileFlags:
-  CompilationDatabase: compile_commands.json
+  CompilationDatabase: .compile_commands.json
+  Add:
+    - -Ibuild/.gens/XnnTransfer/windows/x64/debug/rules/protobuf/proto
+    - -Ibuild/.gens/XnnTransfer/windows/x64/release/rules/protobuf/proto
+    - -Ibuild/.gens/tests/windows/x64/debug/rules/protobuf/proto
+    - -Ibuild/.gens/tests/windows/x64/release/rules/protobuf/proto
 
 Diagnostics:
   Suppress: 
@@ -9,7 +14,6 @@ Diagnostics:
 Index:
   Background: Build
 
-# InlayHints 配置（可选，显示类型推断等信息）
 InlayHints:
   Enabled: true
   ParameterNames: true

@@ -1,5 +1,7 @@
 #include "tcp_sender.h"
 #include <asio/ip/tcp.hpp>
+#include <asio/redirect_error.hpp>
+#include <asio/steady_timer.hpp>
 
 namespace core::net::io {
 TcpSender::TcpSender(Executor& executor,
@@ -8,12 +10,31 @@ TcpSender::TcpSender(Executor& executor,
                      uint16_t port)
     : executor_(executor)
     , socket_(socket)
-    , connector_(executor, socket) {
-    executor_.spawn(connector_.connect(host, port));
+    , connector_(executor, socket)
+    , connect_signal_(std::make_shared<asio::steady_timer>(executor.get_io_context()))
+    , host_(host)
+    , port_(port) {
+    connect_signal_->expires_at(asio::steady_timer::time_point::max());
+    start_connect();
+}
+
+void TcpSender::start_connect() {
+    executor_.spawn([this]() -> asio::awaitable<void> {
+        co_await connector_.connect(host_, port_);
+        connected_.store(true);
+        connect_signal_->cancel();
+    });
 }
 
 asio::awaitable<void> TcpSender::send(ConstDataBlock data) {
-    if (!socket_.is_open() || data.empty()) {
+    if (data.empty()) {
+        co_return;
+    }
+    if (!connected_.load()) {
+        asio::error_code ec;
+        co_await connect_signal_->async_wait(asio::redirect_error(asio::use_awaitable, ec));
+    }
+    if (!socket_.is_open()) {
         co_return;
     }
     co_await socket_.async_send(asio::buffer(static_cast<const void*>(data.data()), data.size()),

@@ -5,6 +5,8 @@
 #include "core/net/io/data_block.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/steady_timer.hpp>
+#include <memory>
 #include <string_view>
 
 namespace core::net::io {
@@ -23,11 +25,16 @@ class TcpSender {
     TcpSender(const TcpSender&) = delete;
     TcpSender& operator=(const TcpSender&) = delete;
 
+    void start_connect();
     asio::awaitable<void> send(ConstDataBlock data);
 
   private:
     Executor& executor_;
     asio::ip::tcp::socket& socket_;
     core::net::Connector connector_;
+    std::shared_ptr<asio::steady_timer> connect_signal_;
+    std::string host_;
+    std::uint16_t port_;
+    std::atomic<bool> connected_{false};
 };
 } // namespace core::net::io
