@@ -9,11 +9,10 @@
 #include <string_view>
 
 namespace core::net::io {
+static constexpr std::string_view kMulticastAddress = "239.255.0.1";
+static constexpr std::uint16_t kMulticastPort = 30001;
 class UdpReceiver {
   public:
-    static constexpr std::string_view kMulticastAddress = "239.255.0.1";
-    static constexpr std::uint16_t kMulticastPort = 30001;
-
     // default constructor (without giving address and port) for joining default multicast group
     UdpReceiver(Executor& executor, asio::ip::udp::socket& socket);
     UdpReceiver(Executor& executor,

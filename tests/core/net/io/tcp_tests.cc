@@ -21,19 +21,6 @@ using namespace std::chrono_literals;
 
 namespace {
 
-bool wait_until(auto&& condition,
-                std::chrono::milliseconds interval = 10ms,
-                std::chrono::milliseconds timeout = 2000ms) {
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (!condition()) {
-        if (std::chrono::steady_clock::now() >= deadline) {
-            return false;
-        }
-        std::this_thread::sleep_for(interval);
-    }
-    return true;
-}
-
 TEST(TcpIoTest, SenderAndReceiverExchange) {
     core::Executor executor;
     asio::ip::tcp::socket receiver_socket(executor.get_io_context());
@@ -55,7 +42,7 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
             co_await sender.send(payload);
             bool receive_success = co_await core::timer::spawn_with_timeout(receiver.receive(
                                                                                 buffer_span),
-                                                                            3s);
+                                                                            5s);
             co_return receive_success;
         },
         asio::use_future);

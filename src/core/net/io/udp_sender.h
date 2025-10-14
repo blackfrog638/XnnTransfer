@@ -2,6 +2,7 @@
 
 #include "core/executor.h"
 #include "core/net/io/data_block.h"
+#include "core/net/io/udp_receiver.h"
 #include <asio/awaitable.hpp>
 #include <asio/ip/udp.hpp>
 #include <string_view>
@@ -18,7 +19,9 @@ class UdpSender {
     UdpSender(const UdpSender&) = delete;
     UdpSender& operator=(const UdpSender&) = delete;
 
-    asio::awaitable<void> send_to(ConstDataBlock data, std::string_view host, uint16_t port);
+    asio::awaitable<void> send_to(ConstDataBlock data,
+                                  std::string_view host = kMulticastAddress,
+                                  uint16_t port = kMulticastPort);
 
   private:
     Executor& executor_;

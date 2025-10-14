@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package discovery;
+
+message HeartbeatRequest {
+    string ip_address = 1;
+    int64 timestamp_ms = 2;
+}
