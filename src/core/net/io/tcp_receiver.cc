@@ -25,8 +25,6 @@ asio::awaitable<void> TcpReceiver::receive(MutDataBlock& buffer) {
     if (buffer.empty()) {
         co_return;
     }
-
-    // Wait for connection to be accepted if not already accepted
     if (!accepted_.load()) {
         asio::error_code ec;
         co_await accept_signal_->async_wait(asio::redirect_error(asio::use_awaitable, ec));

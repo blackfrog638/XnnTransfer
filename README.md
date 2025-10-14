@@ -27,39 +27,30 @@ xmake
 xmake run
 ```
 
-## XMake 常用命令
+### IDE 支持
 
-### 基础构建
-```bash
-xmake                    # 构建项目
-xmake f -m debug        # Debug 模式
-xmake clean             # 清理项目
-xmake f -c              # 清理配置
-```
+#### clangd
 
-### 包管理
-```bash
-xmake require --list    # 查看依赖
-xmake require --force   # 重新安装包
-xmake require --clean   # 清理包缓存
-```
-
-### IDE 支持 (clangd)
-
-项目配置了 clangd 支持，会自动生成 `compile_commands.json`：
+项目配置了 `.clangd` 以支持所有平台。
 
 ```bash
-xmake f -c && xmake
+# 生成 compile_commands.json
+xmake project -k compile_commands
+
+# 或者直接构建（会自动生成）
+xmake
 ```
 
-**注意**: `compile_commands.json` 包含机器特定路径，已添加到 `.gitignore`。每个开发者需要在本地生成。
+**注意**: 
+- `compile_commands.json` 包含机器特定路径，已添加到 `.gitignore`
+- 每个开发者需要在本地生成此文件
 
 ## 项目结构
 
 ```
 src/
 ├── cli/        # 命令行界面
-├── core/       # 核心逻辑
+├── core/       # 封装asio异步库
 ├── discovery/  # 设备发现
 ├── server/     # 网络服务
 └── util/       # 工具库

@@ -1,6 +1,7 @@
 #include "heartbeat.h"
 #include "core/timer.h"
 #include "heartbeat.pb.h"
+#include "util/settings.h"
 #include <asio/ip/host_name.hpp>
 #include <chrono>
 #include <spdlog/spdlog.h>
@@ -12,13 +13,16 @@ asio::awaitable<void> Heartbeat::start() {
         co_return;
     }
 
+    HeartbeatRequest heartbeat_msg;
+
     std::string local_ip = asio::ip::host_name();
     spdlog::info("Heartbeat using local IP: {}", local_ip);
+    heartbeat_msg.set_ip_address(local_ip);
+
+    std::string username = util::Settings::instance().get().value("username", "unknown");
+    heartbeat_msg.set_username(username);
 
     while (running_) {
-        HeartbeatRequest heartbeat_msg;
-        heartbeat_msg.set_ip_address(local_ip);
-
         auto now = std::chrono::system_clock::now();
         auto timestamp_ms
             = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();

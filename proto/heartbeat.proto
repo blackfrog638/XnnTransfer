@@ -3,6 +3,7 @@ syntax = "proto3";
 package discovery;
 
 message HeartbeatRequest {
-    string ip_address = 1;
-    int64 timestamp_ms = 2;
+    string username = 1;
+    string ip_address = 2;
+    int64 timestamp_ms = 3;
 }
