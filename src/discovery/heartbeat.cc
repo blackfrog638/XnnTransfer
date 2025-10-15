@@ -1,5 +1,5 @@
 #include "heartbeat.h"
-#include "core/timer.h"
+#include "core/timer/spawn_after_delay.h"
 #include "heartbeat.pb.h"
 #include "util/settings.h"
 #include <asio/ip/host_name.hpp>
