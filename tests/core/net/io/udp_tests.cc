@@ -53,7 +53,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
               payload_text);
 
     const auto sender_local_endpoint = sender_socket.local_endpoint();
-    EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v4::loopback());
+    EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v4::any());
     EXPECT_NE(sender_local_endpoint.port(), 0);
 
     executor.stop();

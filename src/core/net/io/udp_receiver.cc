@@ -7,12 +7,14 @@ UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {
     asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), kMulticastPort);
-    socket_.open(local_endpoint.protocol());
-    socket_.set_option(asio::ip::udp::socket::reuse_address(true));
-    socket_.bind(local_endpoint);
 
-    socket_.set_option(
-        asio::ip::multicast::join_group(asio::ip::make_address_v4(std::string(kMulticastAddress))));
+    if (!socket_.is_open()) {
+        socket_.open(local_endpoint.protocol());
+        socket_.set_option(asio::ip::udp::socket::reuse_address(true));
+        socket_.bind(local_endpoint);
+        socket_.set_option(asio::ip::multicast::join_group(
+            asio::ip::make_address_v4(std::string(kMulticastAddress))));
+    }
 }
 
 UdpReceiver::UdpReceiver(Executor& executor,

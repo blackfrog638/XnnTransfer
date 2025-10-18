@@ -3,6 +3,7 @@
 #include "heartbeat.pb.h"
 #include "util/settings.h"
 #include <asio/ip/host_name.hpp>
+#include <asio/ip/tcp.hpp>
 #include <chrono>
 #include <spdlog/spdlog.h>
 
@@ -14,8 +15,10 @@ asio::awaitable<void> Heartbeat::start() {
     }
 
     HeartbeatRequest heartbeat_msg;
-
-    std::string local_ip = asio::ip::host_name();
+    asio::ip::tcp::resolver resolver(executor_.get_io_context());
+    std::string local_host = asio::ip::host_name();
+    auto endpoints = resolver.resolve(asio::ip::tcp::v6(), local_host, "");
+    std::string local_ip = endpoints.begin()->endpoint().address().to_string();
     spdlog::info("Heartbeat using local IP: {}", local_ip);
     heartbeat_msg.set_ip_address(local_ip);
 
