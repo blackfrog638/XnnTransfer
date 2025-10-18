@@ -2,6 +2,7 @@
 #include <asio/ip/multicast.hpp>
 
 namespace core::net::io {
+
 UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {

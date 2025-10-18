@@ -3,15 +3,19 @@
 #include <cstddef>
 
 namespace core::net::io {
+
 UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {
-    asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), kMulticastPort);
-
     if (!socket_.is_open()) {
-        socket_.open(local_endpoint.protocol());
+        socket_.open(asio::ip::udp::v4());
         socket_.set_option(asio::ip::udp::socket::reuse_address(true));
+
+        // 绑定到 any address 而不是 multicast 地址
+        asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), kMulticastPort);
         socket_.bind(local_endpoint);
+
+        // 加入 multicast 组
         socket_.set_option(asio::ip::multicast::join_group(
             asio::ip::make_address_v4(std::string(kMulticastAddress))));
         socket_.set_option(asio::ip::multicast::enable_loopback(true));
@@ -43,6 +47,7 @@ UdpReceiver::UdpReceiver(Executor& executor,
         } else if (address.is_v6()) {
             socket_.set_option(asio::ip::multicast::join_group(address.to_v6()));
         }
+        socket_.set_option(asio::ip::multicast::enable_loopback(true));
         multicast_joined_ = true;
     }
 }
