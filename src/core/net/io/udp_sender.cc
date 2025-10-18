@@ -7,10 +7,12 @@ UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
     , socket_(socket) {
     if (!socket_.is_open()) {
         socket_.open(asio::ip::udp::v4());
+        socket_.set_option(asio::ip::udp::socket::reuse_address(true));
         socket_.bind(asio::ip::udp::endpoint(asio::ip::address_v4::any(), 0));
     }
 
     socket_.set_option(asio::ip::multicast::enable_loopback(true));
+    socket_.set_option(asio::ip::multicast::hops(1));
 }
 
 asio::awaitable<void> UdpSender::send_to(ConstDataBlock data, std::string_view host, uint16_t port) {

@@ -14,6 +14,7 @@ UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
         socket_.bind(local_endpoint);
         socket_.set_option(asio::ip::multicast::join_group(
             asio::ip::make_address_v4(std::string(kMulticastAddress))));
+        socket_.set_option(asio::ip::multicast::enable_loopback(true));
     }
 }
 
