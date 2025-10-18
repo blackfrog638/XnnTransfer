@@ -18,7 +18,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
     const std::uint16_t kPort = 40101;
     core::net::io::UdpReceiver receiver(executor,
                                         receiver_socket,
-                                        asio::ip::make_address("::1"),
+                                        asio::ip::make_address("127.0.0.1"),
                                         kPort);
     core::net::io::UdpSender sender(executor, sender_socket);
 
@@ -30,7 +30,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
         [&]() -> asio::awaitable<bool> {
             auto payload_span = std::span<const char>(payload_text.data(), payload_text.size());
             auto payload_bytes = std::as_bytes(payload_span);
-            co_await sender.send_to(payload_bytes, "::1", kPort);
+            co_await sender.send_to(payload_bytes, "127.0.0.1", kPort);
 
             auto result = co_await core::timer::spawn_with_timeout(receiver.receive(buffer_span),
                                                                    2s);
@@ -53,7 +53,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
               payload_text);
 
     const auto sender_local_endpoint = sender_socket.local_endpoint();
-    EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v6::any());
+    EXPECT_EQ(sender_local_endpoint.address(), asio::ip::address_v4::any());
     EXPECT_NE(sender_local_endpoint.port(), 0);
 
     executor.stop();

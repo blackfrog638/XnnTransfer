@@ -9,7 +9,7 @@
 #include <string_view>
 
 namespace core::net::io {
-static constexpr std::string_view kMulticastAddress = "ff02::1";
+static constexpr std::string_view kMulticastAddress = "239.255.0.1";
 static constexpr std::uint16_t kMulticastPort = 40101;
 class UdpReceiver {
   public:

@@ -6,8 +6,8 @@ UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {
     if (!socket_.is_open()) {
-        socket_.open(asio::ip::udp::v6());
-        socket_.bind(asio::ip::udp::endpoint(asio::ip::address_v6::any(), 0));
+        socket_.open(asio::ip::udp::v4());
+        socket_.bind(asio::ip::udp::endpoint(asio::ip::address_v4::any(), 0));
     }
 
     socket_.set_option(asio::ip::multicast::enable_loopback(true));

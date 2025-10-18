@@ -125,7 +125,7 @@ std::string OnlineListInspector::get_local_ip() {
     try {
         asio::ip::tcp::resolver resolver(executor_.get_io_context());
         std::string local_host = asio::ip::host_name();
-        auto endpoints = resolver.resolve(asio::ip::tcp::v6(), local_host, "");
+        auto endpoints = resolver.resolve(asio::ip::tcp::v4(), local_host, "");
         std::string local_ip = endpoints.begin()->endpoint().address().to_string();
         spdlog::info("Local IP detected: {}", local_ip);
         return local_ip;
