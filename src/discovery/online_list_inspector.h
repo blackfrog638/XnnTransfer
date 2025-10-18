@@ -12,10 +12,8 @@
 namespace discovery {
 class OnlineListInspector {
   public:
-    explicit OnlineListInspector(core::Executor& executor)
-        : executor_(executor)
-        , socket_(executor.get_io_context())
-        , receiver_(executor, socket_) {};
+    explicit OnlineListInspector(core::Executor& executor);
+
     ~OnlineListInspector() = default;
 
     OnlineListInspector(const OnlineListInspector&) = delete;

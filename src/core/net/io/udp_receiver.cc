@@ -6,14 +6,14 @@ namespace core::net::io {
 UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
     : executor_(executor)
     , socket_(socket) {
-    asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), kMulticastPort);
+    asio::ip::udp::endpoint local_endpoint(asio::ip::address_v6::any(), kMulticastPort);
 
     if (!socket_.is_open()) {
         socket_.open(local_endpoint.protocol());
         socket_.set_option(asio::ip::udp::socket::reuse_address(true));
         socket_.bind(local_endpoint);
         socket_.set_option(asio::ip::multicast::join_group(
-            asio::ip::make_address_v4(std::string(kMulticastAddress))));
+            asio::ip::make_address_v6(std::string(kMulticastAddress))));
     }
 }
 
@@ -23,13 +23,15 @@ UdpReceiver::UdpReceiver(Executor& executor,
                          std::uint16_t port)
     : executor_(executor)
     , socket_(socket) {
-    asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), port);
-    socket_.open(local_endpoint.protocol());
+    asio::ip::udp::endpoint local_endpoint(asio::ip::address_v6::any(), port);
+    socket_.open(asio::ip::udp::v6());
     socket_.set_option(asio::ip::udp::socket::reuse_address(true));
     socket_.bind(local_endpoint);
 
     if (address.is_multicast()) {
-        socket_.set_option(asio::ip::multicast::join_group(address.to_v4()));
+        if (address.is_v6()) {
+            socket_.set_option(asio::ip::multicast::join_group(address.to_v6()));
+        }
         multicast_joined_ = true;
     }
 }

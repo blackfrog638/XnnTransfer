@@ -8,6 +8,11 @@
 
 namespace discovery {
 
+OnlineListInspector::OnlineListInspector(core::Executor& executor)
+    : executor_(executor)
+    , socket_(executor.get_io_context())
+    , receiver_(executor, socket_) {}
+
 void OnlineListInspector::start() {
     if (running_.exchange(true)) {
         return;

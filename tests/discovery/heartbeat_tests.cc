@@ -9,6 +9,7 @@
 #include <asio/use_future.hpp>
 #include <chrono>
 #include <gtest/gtest.h>
+#include <spdlog/spdlog.h>
 #include <string>
 
 using namespace std::chrono_literals;
@@ -33,33 +34,54 @@ TEST_F(HeartbeatTest, StartAndSendHeartbeat) {
 
     auto test_future = executor.spawn(
         [&]() -> asio::awaitable<bool> {
-            executor.spawn(heartbeat.start());
+            try {
+                executor.spawn(heartbeat.start());
 
-            auto result = co_await core::timer::spawn_with_timeout(receiver.receive(buffer_span),
-                                                                   2s);
+                auto result = co_await core::timer::spawn_with_timeout(receiver.receive(buffer_span),
+                                                                       2s);
 
-            if (!result.has_value()) {
+                if (!result.has_value()) {
+                    spdlog::error("Timeout: no heartbeat received");
+                    co_return false;
+                }
+
+                co_await heartbeat.stop();
+                co_return true;
+            } catch (const std::exception& e) {
+                spdlog::error("Exception in test: {}", e.what());
                 co_return false;
             }
-
-            co_await heartbeat.stop();
-            co_return true;
         },
         asio::use_future);
 
-    std::thread runner([&executor]() { executor.start(); });
+    std::thread runner([&executor]() {
+        try {
+            executor.start();
+        } catch (const std::exception& e) {
+            spdlog::error("Exception in executor thread: {}", e.what());
+        }
+    });
 
-    ASSERT_TRUE(test_future.get()) << "Failed to receive heartbeat within timeout";
-    std::string serialized_data(reinterpret_cast<const char*>(buffer_span.data()),
-                                buffer_span.size());
-    HeartbeatRequest heartbeat_msg;
-    ASSERT_TRUE(heartbeat_msg.ParseFromString(serialized_data))
-        << "Failed to parse heartbeat message";
+    bool result = false;
+    try {
+        result = test_future.get();
+    } catch (const std::exception& e) {
+        spdlog::error("Exception getting future result: {}", e.what());
+        result = false;
+    }
 
     executor.stop();
     if (runner.joinable()) {
         runner.join();
     }
+
+    ASSERT_TRUE(result) << "Failed to receive heartbeat within timeout";
+
+    std::string serialized_data(reinterpret_cast<const char*>(buffer_span.data()),
+                                buffer_span.size());
+    HeartbeatRequest heartbeat_msg;
+    ASSERT_TRUE(heartbeat_msg.ParseFromString(serialized_data))
+        << "Failed to parse heartbeat message";
 }
 
 TEST_F(HeartbeatTest, SendMultipleHeartbeats) {
