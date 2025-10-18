@@ -11,14 +11,17 @@ UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
         socket_.open(asio::ip::udp::v4());
         socket_.set_option(asio::ip::udp::socket::reuse_address(true));
 
-        // 绑定到 any address 而不是 multicast 地址
         asio::ip::udp::endpoint local_endpoint(asio::ip::address_v4::any(), kMulticastPort);
         socket_.bind(local_endpoint);
 
-        // 加入 multicast 组
-        socket_.set_option(asio::ip::multicast::join_group(
-            asio::ip::make_address_v4(std::string(kMulticastAddress))));
+        asio::ip::address_v4 multicast_addr = asio::ip::make_address_v4(
+            std::string(kMulticastAddress));
+        socket_.set_option(asio::ip::multicast::join_group(multicast_addr));
         socket_.set_option(asio::ip::multicast::enable_loopback(true));
+
+        // 尝试在所有接口上加入 multicast（macOS 可能需要）
+        socket_.set_option(
+            asio::ip::multicast::join_group(multicast_addr, asio::ip::address_v4::any()));
     }
 }
 
@@ -28,7 +31,6 @@ UdpReceiver::UdpReceiver(Executor& executor,
                          std::uint16_t port)
     : executor_(executor)
     , socket_(socket) {
-    // 根据地址类型选择协议
     asio::ip::udp::endpoint local_endpoint;
     if (address.is_v4()) {
         local_endpoint = asio::ip::udp::endpoint(asio::ip::address_v4::any(), port);
