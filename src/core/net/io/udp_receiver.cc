@@ -18,10 +18,6 @@ UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
             std::string(kMulticastAddress));
         socket_.set_option(asio::ip::multicast::join_group(multicast_addr));
         socket_.set_option(asio::ip::multicast::enable_loopback(true));
-
-        // 尝试在所有接口上加入 multicast（macOS 可能需要）
-        socket_.set_option(
-            asio::ip::multicast::join_group(multicast_addr, asio::ip::address_v4::any()));
     }
 }
 

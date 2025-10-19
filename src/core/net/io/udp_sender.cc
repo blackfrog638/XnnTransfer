@@ -14,9 +14,6 @@ UdpSender::UdpSender(Executor& executor, asio::ip::udp::socket& socket)
 
     socket_.set_option(asio::ip::multicast::enable_loopback(true));
     socket_.set_option(asio::ip::multicast::hops(1));
-
-    socket_.set_option(asio::ip::multicast::outbound_interface(asio::ip::address_v4::any()));
-    socket_.set_option(asio::ip::multicast::outbound_interface(asio::ip::address_v4::loopback()));
 }
 
 asio::awaitable<void> UdpSender::send_to(ConstDataBlock data, std::string_view host, uint16_t port) {
