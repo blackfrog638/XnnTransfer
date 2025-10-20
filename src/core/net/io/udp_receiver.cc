@@ -1,6 +1,7 @@
 #include "udp_receiver.h"
 #include <asio/ip/multicast.hpp>
 #include <cstddef>
+#include <spdlog/spdlog.h>
 
 namespace core::net::io {
 
@@ -18,6 +19,12 @@ UdpReceiver::UdpReceiver(Executor& executor, asio::ip::udp::socket& socket)
             std::string(kMulticastAddress));
         socket_.set_option(asio::ip::multicast::join_group(multicast_addr));
         socket_.set_option(asio::ip::multicast::enable_loopback(true));
+        
+        // macOS 调试：记录 socket 配置
+        spdlog::debug("UDP Receiver initialized: bound to {}:{}, joined multicast {}",
+                     local_endpoint.address().to_string(),
+                     local_endpoint.port(),
+                     multicast_addr.to_string());
     }
 }
 

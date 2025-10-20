@@ -19,7 +19,7 @@ class DiscoveryIntegrationTest : public ::testing::Test {
   protected:
     void SetUp() override {
         util::Settings::instance().init("test_settings.json");
-        spdlog::set_level(spdlog::level::info);
+        spdlog::set_level(spdlog::level::debug);
     }
 
     void TearDown() override { std::remove("test_settings.json"); }
