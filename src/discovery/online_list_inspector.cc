@@ -1,5 +1,6 @@
 #include "online_list_inspector.h"
 #include "heartbeat.pb.h"
+#include "util/data_block.h"
 #include <asio/ip/host_name.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/steady_timer.hpp>
@@ -37,7 +38,7 @@ void OnlineListInspector::restart() {
 
 asio::awaitable<void> OnlineListInspector::inspect_loop() {
     std::array<std::byte, 512> buffer{};
-    core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
+    MutDataBlock buffer_span(buffer.data(), buffer.size());
 
     while (running_.load()) {
         co_await receiver_.receive(buffer_span);

@@ -1,6 +1,7 @@
 #include "core/executor.h"
 #include "discovery/heartbeat.h"
 #include "discovery/online_list_inspector.h"
+#include "util/data_block.h"
 #include "util/settings.h"
 #include <asio/steady_timer.hpp>
 #include <asio/use_awaitable.hpp>
@@ -37,7 +38,7 @@ class DiscoveryIntegrationTest : public ::testing::Test {
             core::net::io::UdpSender sender(executor, test_socket);
 
             std::array<std::byte, 4> test_data{};
-            auto data_span = core::net::io::ConstDataBlock(test_data.data(), test_data.size());
+            auto data_span = ConstDataBlock(test_data.data(), test_data.size());
 
             auto test_future = executor.spawn(
                 [&]() -> asio::awaitable<bool> {

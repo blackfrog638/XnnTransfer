@@ -23,7 +23,7 @@ TEST(UdpIoTest, SenderAndReceiverExchange) {
     core::net::io::UdpSender sender(executor, sender_socket);
 
     std::array<std::byte, 256> buffer{};
-    core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
+    MutDataBlock buffer_span(buffer.data(), buffer.size());
     const std::string payload_text = "udp-hello";
 
     auto test_future = executor.spawn(

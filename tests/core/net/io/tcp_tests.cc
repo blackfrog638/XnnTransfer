@@ -25,7 +25,7 @@ TEST(TcpIoTest, SenderAndReceiverExchange) {
     constexpr std::uint16_t kPort = 40201;
 
     std::array<std::byte, 256> buffer{};
-    core::net::io::MutDataBlock buffer_span(buffer.data(), buffer.size());
+    MutDataBlock buffer_span(buffer.data(), buffer.size());
     const std::string payload_text = "tcp-hello";
 
     core::net::io::TcpReceiver receiver(executor, receiver_socket, kPort);
