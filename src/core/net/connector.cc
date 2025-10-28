@@ -14,6 +14,9 @@ asio::awaitable<bool> Connector::connect(std::string_view host, std::uint16_t po
     co_await socket_.async_connect(endpoint, asio::redirect_error(asio::use_awaitable, ec));
     if (ec) {
         spdlog::error("Failed to connect to {}:{} - {}", host, port, ec.message());
+        if (socket_.is_open()) {
+            socket_.close();
+        }
         co_return false;
     }
 
