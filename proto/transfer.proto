@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package transfer;
+
+message FileTransferRequest {
+    string session_id = 1;
+    string name = 2;
+    uint64 size = 3;
+    string destination = 4;
+    string hash = 5;
+}
+
+message FileTransferResponse {
+    string session_id = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        IN_PROGRESS = 2;
+    }
+    Status status = 2;
+    string message = 3;
+}
+
+message FileChunkRequest {
+    string session_id = 1;
+    uint64 chunk_index = 2;
+    bytes data = 3;
+    string hash = 4;
+    bool is_last_chunk = 5;
+}
+
+message FileChunkResponse {
+    string session_id = 1;
+    enum Status {
+        RECEIVED = 0;
+        ERROR = 1;
+    }
+    Status status = 2;
+    string message = 3;
+}
