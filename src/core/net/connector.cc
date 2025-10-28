@@ -8,11 +8,17 @@
 #include <spdlog/spdlog.h>
 
 namespace core::net {
-asio::awaitable<void> Connector::connect(std::string_view host, std::uint16_t port) {
+asio::awaitable<bool> Connector::connect(std::string_view host, std::uint16_t port) {
     asio::ip::tcp::endpoint endpoint(asio::ip::make_address(host.data()), port);
-    co_await socket_.async_connect(endpoint, asio::use_awaitable);
+    asio::error_code ec;
+    co_await socket_.async_connect(endpoint, asio::redirect_error(asio::use_awaitable, ec));
+    if (ec) {
+        spdlog::error("Failed to connect to {}:{} - {}", host, port, ec.message());
+        co_return false;
+    }
+
     spdlog::debug("Connected to {}:{}", host, port);
-    co_return;
+    co_return true;
 }
 
 void Connector::disconnect() {

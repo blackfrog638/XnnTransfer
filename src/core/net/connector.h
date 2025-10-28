@@ -17,7 +17,7 @@ class Connector {
     Connector(const Connector&) = delete;
     Connector& operator=(const Connector&) = delete;
 
-    asio::awaitable<void> connect(std::string_view host, std::uint16_t port);
+    asio::awaitable<bool> connect(std::string_view host, std::uint16_t port);
     void disconnect();
 
   private:

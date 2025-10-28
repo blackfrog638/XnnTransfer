@@ -99,4 +99,30 @@ TEST(ConnectionTest, CoreNetworkTest) {
     }
 }
 
+TEST(ConnectionTest, ConnectFailureReturnsFalse) {
+    core::Executor executor;
+    asio::ip::tcp::socket client_socket(executor.get_io_context());
+    core::net::Connector connector(executor, client_socket);
+
+    std::thread runner([&executor]() { executor.start(); });
+
+    constexpr std::uint16_t kUnusedPort = 39999;
+
+    auto connect_future = executor.spawn(
+        [&]() -> asio::awaitable<bool> {
+            co_return co_await connector.connect("127.0.0.1", kUnusedPort);
+        },
+        asio::use_future);
+
+    ASSERT_EQ(connect_future.wait_for(3s), std::future_status::ready)
+        << "Connector did not report result in time";
+    EXPECT_FALSE(connect_future.get());
+    EXPECT_FALSE(client_socket.is_open());
+
+    executor.stop();
+    if (runner.joinable()) {
+        runner.join();
+    }
+}
+
 } // namespace

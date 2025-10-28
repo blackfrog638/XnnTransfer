@@ -20,8 +20,8 @@ TcpSender::TcpSender(Executor& executor,
 
 void TcpSender::start_connect() {
     executor_.spawn([this]() -> asio::awaitable<void> {
-        co_await connector_.connect(host_, port_);
-        connected_.store(true);
+        const bool connected = co_await connector_.connect(host_, port_);
+        connected_.store(connected);
         connect_signal_->cancel();
     });
 }
