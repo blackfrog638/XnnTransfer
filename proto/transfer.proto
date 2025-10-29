@@ -2,39 +2,62 @@ syntax = "proto3";
 
 package transfer;
 
-message FileTransferRequest {
-    string session_id = 1;
-    string name = 2;
-    uint64 size = 3;
-    string destination = 4;
-    string hash = 5;
+message TransferMetadataRequest{
+    string source = 1;
+    string destination = 2;
+    string session_id = 3;
+    uint64 total_size = 4;
+    repeated FileInfoRequest files = 5;
 }
 
-message FileTransferResponse {
+message FileInfoRequest {
+    string relative_path = 1;
+    uint64 size = 2;
+    string hash = 3;
+}
+
+message FileInfoResponse {
     string session_id = 1;
+    string relative_path = 2;
+    enum Status {
+        READY = 0;
+        SKIPPED = 1;
+        ERROR = 2;
+    }
+    Status status = 3;
+    string message = 4;
+}
+
+message TransferMetadataResponse {
+    string source = 1;
+    string destination = 2;
+    string session_id = 3;
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;
         IN_PROGRESS = 2;
     }
-    Status status = 2;
-    string message = 3;
+    Status status = 4;
+    string message = 5;
 }
 
 message FileChunkRequest {
     string session_id = 1;
-    uint64 chunk_index = 2;
-    bytes data = 3;
-    string hash = 4;
-    bool is_last_chunk = 5;
+    string file_relative_path = 2;
+    uint64 chunk_index = 3;
+    bytes data = 4;
+    string hash = 5;
+    bool is_last_chunk = 6;
 }
 
 message FileChunkResponse {
     string session_id = 1;
+    string file_relative_path = 2;
+    uint64 chunk_index = 3;
     enum Status {
         RECEIVED = 0;
         ERROR = 1;
     }
-    Status status = 2;
-    string message = 3;
+    Status status = 4;
+    string message = 5;
 }

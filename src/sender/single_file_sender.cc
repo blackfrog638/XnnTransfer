@@ -1,20 +1,12 @@
 #include "single_file_sender.h"
 #include "transfer.pb.h"
 #include "util/hash.h"
-#include <chrono>
 #include <fstream>
-#include <random>
 #include <string>
 #include <system_error>
 #include <vector>
 
 namespace {
-std::string generate_session_id() {
-    auto rd = std::random_device{}();
-    auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    return std::to_string(now) + "-" + std::to_string(rd);
-}
-
 ConstDataBlock make_block(const std::string& payload) {
     return {reinterpret_cast<const std::byte*>(payload.data()), payload.size()};
 }
@@ -22,48 +14,36 @@ ConstDataBlock make_block(const std::string& payload) {
 
 namespace sender {
 SingleFileSender::SingleFileSender(core::Executor& executor,
-                                   const std::filesystem::path& file_path,
-                                   std::string_view target_address,
-                                   uint16_t target_port)
+                                   core::net::io::TcpSender& tcp_sender,
+                                   std::string_view& session_id,
+                                   std::filesystem::path& file_path,
+                                   std::filesystem::path& relative_path)
     : executor_(executor)
-    , socket_(executor.get_io_context())
-    , file_path_(file_path)
-    , target_address_(target_address)
-    , target_port_(target_port)
-    , tcp_sender_(executor, socket_, target_address_, target_port_) {}
-
-asio::awaitable<void> SingleFileSender::send() {
+    , tcp_sender_(tcp_sender)
+    , session_id_(session_id)
+    , relative_path_(relative_path)
+    , file_path_(file_path) {
     std::error_code ec;
     file_size_ = std::filesystem::file_size(file_path_, ec);
     if (ec) {
-        co_return;
+        return;
     }
 
-    chunks_count_ = (file_size_ + chunk_size_ - 1) / chunk_size_;
+    chunks_count_ = (file_size_ + kChunkSize - 1) / kChunkSize;
     status_.assign(static_cast<std::size_t>(chunks_count_), ChunkStatus::Waiting);
     bytes_sent_ = 0;
 
     auto file_hash_hex = util::hash::sha256_file_hex(file_path_);
     if (!file_hash_hex) {
-        co_return;
+        return;
     }
 
-    const auto session_id = generate_session_id();
+    file_info_.set_size(file_size_);
+    file_info_.set_relative_path(relative_path_.string());
+    file_info_.set_hash(*file_hash_hex);
+}
 
-    transfer::FileTransferRequest request;
-    request.set_session_id(session_id);
-    request.set_name(file_path_.filename().string());
-    request.set_size(file_size_);
-    request.set_destination(std::string(target_address_));
-    request.set_hash(*file_hash_hex);
-
-    std::string request_payload;
-    if (!request.SerializeToString(&request_payload)) {
-        co_return;
-    }
-
-    executor_.spawn(tcp_sender_.send(make_block(request_payload)));
-
+asio::awaitable<void> SingleFileSender::send() {
     if (chunks_count_ == 0) {
         co_return;
     }
@@ -73,11 +53,11 @@ asio::awaitable<void> SingleFileSender::send() {
         co_return;
     }
 
-    std::vector<std::byte> buffer(static_cast<std::size_t>(chunk_size_));
+    std::vector<std::byte> buffer(static_cast<std::size_t>(kChunkSize));
 
     for (uint64_t index = 0; index < chunks_count_; ++index) {
         const bool is_last_chunk = (index + 1 == chunks_count_);
-        auto chunk_data = load_chunk(input, buffer, index, session_id, is_last_chunk);
+        auto chunk_data = load_chunk(input, buffer, index, session_id_, is_last_chunk);
         if (!chunk_data) {
             break;
         }
@@ -91,7 +71,7 @@ std::optional<SingleFileSender::ChunkData> SingleFileSender::load_chunk(
     std::ifstream& input,
     std::vector<std::byte>& buffer,
     uint64_t index,
-    const std::string& session_id,
+    std::string_view& session_id,
     bool is_last_chunk) {
     const auto slot = static_cast<std::size_t>(index);
     if (slot >= status_.size()) {

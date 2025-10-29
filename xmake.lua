@@ -1,11 +1,11 @@
 set_project("XnnTransfer")
 
 add_rules("mode.debug", "mode.release")
-add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
+add_rules("plugin.compile_commands.autoupdate", {outputdir = ".", lsp = "clangd"})
 
 set_languages("c++20")
 add_includedirs("src", "$(builddir)")
-add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest", "protobuf-cpp", "openssl")
+add_requires("fmt", "spdlog", "nlohmann_json", "asio", "gtest", "protobuf-cpp", "openssl", "stduuid")
 
 if is_plat("macosx") then
     set_toolchains("gcc", "clang")
@@ -17,7 +17,7 @@ target("XnnTransfer")
     add_rules("protobuf.cpp")
     add_files("src/**.cc")
     add_files("proto/*.proto")
-    add_packages("fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp", "openssl")
+    add_packages("fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp", "openssl", "stduuid")
 
     if is_mode("debug") then
         set_symbols("debug")
@@ -33,7 +33,7 @@ target("tests")
     set_default(false)
     add_rules("protobuf.cpp")
 
-    add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp", "openssl")
+    add_packages("gtest", "fmt", "spdlog", "nlohmann_json", "asio", "protobuf-cpp", "openssl", "stduuid")
     add_tests("default")
 
     add_files("src/**.cc")

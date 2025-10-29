@@ -1,6 +1,7 @@
 #include "online_list_inspector.h"
 #include "heartbeat.pb.h"
 #include "util/data_block.h"
+#include "util/network.h"
 #include <asio/ip/host_name.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/steady_timer.hpp>
@@ -123,17 +124,7 @@ asio::awaitable<void> OnlineListInspector::remove_user(std::string ip) {
 }
 
 std::string OnlineListInspector::get_local_ip() {
-    try {
-        asio::ip::tcp::resolver resolver(executor_.get_io_context());
-        std::string local_host = asio::ip::host_name();
-        auto endpoints = resolver.resolve(asio::ip::tcp::v4(), local_host, "");
-        std::string local_ip = endpoints.begin()->endpoint().address().to_string();
-        spdlog::info("Local IP detected: {}", local_ip);
-        return local_ip;
-    } catch (const std::exception& e) {
-        spdlog::warn("Failed to get local IP: {}", e.what());
-        return "";
-    }
+    return util::get_local_ip(executor_.get_io_context());
 }
 
 } // namespace discovery
