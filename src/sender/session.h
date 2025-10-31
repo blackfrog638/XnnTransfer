@@ -33,11 +33,6 @@ class Session {
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
 
-    void set_destination(std::string_view destination) {
-        destination_ = destination;
-        prepare_filepaths();
-    }
-
     asio::awaitable<void> send();
 
     const transfer::TransferMetadataRequest& metadata_request() const { return metadata_request_; }

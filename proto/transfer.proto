@@ -36,6 +36,7 @@ message TransferMetadataResponse {
         SUCCESS = 0;
         FAILURE = 1;
         IN_PROGRESS = 2;
+        READY = 3;
     }
     Status status = 4;
     string message = 5;

@@ -156,7 +156,7 @@ TEST_F(SessionsTest, NestedDirectoryMetadataGeneration) {
 
     for (int i = 0; i < metadata.files_size(); ++i) {
         const auto& file_info = metadata.files(i);
-        std::string path = file_info.relative_path();
+        const std::string& path = file_info.relative_path();
 
         if (path.find("root_file.txt") != std::string::npos) {
             has_root_file = true;
