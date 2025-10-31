@@ -27,6 +27,7 @@ class TcpSender {
 
     void start_connect();
     asio::awaitable<void> send(ConstDataBlock data);
+    asio::awaitable<void> receive(MutDataBlock& buffer);
 
   private:
     Executor& executor_;

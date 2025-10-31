@@ -40,4 +40,24 @@ asio::awaitable<void> TcpSender::send(ConstDataBlock data) {
     co_await socket_.async_send(asio::buffer(static_cast<const void*>(data.data()), data.size()),
                                 asio::use_awaitable);
 }
+
+asio::awaitable<void> TcpSender::receive(MutDataBlock& buffer) {
+    if (buffer.empty()) {
+        co_return;
+    }
+    if (!connected_.load()) {
+        asio::error_code ec;
+        co_await connect_signal_->async_wait(asio::redirect_error(asio::use_awaitable, ec));
+    }
+    if (!socket_.is_open()) {
+        co_return;
+    }
+
+    std::size_t bytes_received = co_await socket_.async_receive(asio::buffer(static_cast<void*>(
+                                                                                 buffer.data()),
+                                                                             buffer.size()),
+                                                                asio::use_awaitable);
+    buffer = buffer.first(bytes_received);
+    co_return;
+}
 } // namespace core::net::io

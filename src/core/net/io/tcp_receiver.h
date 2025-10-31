@@ -20,6 +20,7 @@ class TcpReceiver {
 
     void start_accept();
     asio::awaitable<void> receive(MutDataBlock& buffer);
+    asio::awaitable<void> send(ConstDataBlock data);
 
   private:
     Executor& executor_;

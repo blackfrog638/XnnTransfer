@@ -42,4 +42,19 @@ asio::awaitable<void> TcpReceiver::receive(MutDataBlock& buffer) {
     co_return;
 }
 
+asio::awaitable<void> TcpReceiver::send(ConstDataBlock data) {
+    if (data.empty()) {
+        co_return;
+    }
+    if (!accepted_.load()) {
+        asio::error_code ec;
+        co_await accept_signal_->async_wait(asio::redirect_error(asio::use_awaitable, ec));
+    }
+    if (!socket_.is_open()) {
+        co_return;
+    }
+    co_await socket_.async_send(asio::buffer(static_cast<const void*>(data.data()), data.size()),
+                                asio::use_awaitable);
+}
+
 } //namespace core::net::io

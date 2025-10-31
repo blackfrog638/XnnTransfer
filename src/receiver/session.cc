@@ -93,7 +93,6 @@ void Session::dispatch_chunk(
 }
 
 asio::awaitable<void> Session::receive() {
-    // 1. 接收 TransferMetadataRequest
     std::vector<std::byte> buffer(kBufferSize);
 
     auto metadata_opt = co_await receive_metadata(buffer);
@@ -102,14 +101,11 @@ asio::awaitable<void> Session::receive() {
     }
     auto& metadata = *metadata_opt;
 
-    // 2. 根据 metadata 创建 SingleFileReceiver
     std::vector<transfer::FileInfoRequest> file_infos;
     auto receivers = create_receivers(metadata, file_infos);
 
-    // track completed files
     std::unordered_set<std::string> completed_files;
 
-    // 3. 接受 FileChunkRequest 并分发
     while (true) {
         auto chunk_opt = co_await receive_chunk(buffer);
         if (!chunk_opt) {
