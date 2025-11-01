@@ -8,6 +8,8 @@
 #include <asio/steady_timer.hpp>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <vector>
 
 namespace core::net::io {
 class TcpReceiver {
@@ -21,6 +23,28 @@ class TcpReceiver {
     void start_accept();
     asio::awaitable<void> receive(MutDataBlock& buffer);
     asio::awaitable<void> send(ConstDataBlock data);
+
+    // Template method to send protobuf messages directly
+    template<util::ProtobufMessage T>
+    asio::awaitable<void> send_message(const T& message) {
+        auto serialized = util::serialize_message(message);
+        ConstDataBlock data(serialized.data(), serialized.size());
+        co_await send(data);
+    }
+
+    // Template method to receive protobuf messages directly
+    template<util::ProtobufMessage T>
+    asio::awaitable<std::optional<T>> receive_message() {
+        std::vector<std::byte> buffer(1024 * 1024 + 512); // 1MB + slack
+        MutDataBlock buf_span(buffer.data(), buffer.size());
+        co_await receive(buf_span);
+
+        if (buf_span.empty()) {
+            co_return std::nullopt;
+        }
+
+        co_return util::deserialize_message<T>(buf_span);
+    }
 
   private:
     Executor& executor_;

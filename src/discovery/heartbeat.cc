@@ -31,10 +31,7 @@ asio::awaitable<void> Heartbeat::start() {
             = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         heartbeat_msg.set_timestamp_ms(timestamp_ms);
 
-        std::string serialized = heartbeat_msg.SerializeAsString();
-        co_await core::timer::spawn_after_delay(sender_.send_to(std::as_bytes(
-                                                    std::span<const char>(serialized.data(),
-                                                                          serialized.size()))),
+        co_await core::timer::spawn_after_delay(sender_.send_message_to(heartbeat_msg),
                                                 interval_ms_);
 
         spdlog::debug("Heartbeat sent: ip={}, timestamp={}", local_ip, timestamp_ms);

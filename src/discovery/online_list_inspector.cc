@@ -1,6 +1,5 @@
 #include "online_list_inspector.h"
 #include "heartbeat.pb.h"
-#include "util/data_block.h"
 #include "util/network.h"
 #include <asio/ip/host_name.hpp>
 #include <asio/ip/tcp.hpp>
@@ -38,30 +37,18 @@ void OnlineListInspector::restart() {
 }
 
 asio::awaitable<void> OnlineListInspector::inspect_loop() {
-    std::array<std::byte, 512> buffer{};
-    MutDataBlock buffer_span(buffer.data(), buffer.size());
-
     while (running_.load()) {
-        co_await receiver_.receive(buffer_span);
-        if (buffer_span.empty()) {
-            continue;
-        }
-
-        std::string serialized_data(reinterpret_cast<const char*>(buffer_span.data()),
-                                    buffer_span.size());
-
-        HeartbeatRequest heartbeat_msg;
-        if (!heartbeat_msg.ParseFromString(serialized_data)) {
-            spdlog::warn("Failed to parse HeartbeatRequest from received data");
+        auto heartbeat_msg = co_await receiver_.receive_message<HeartbeatRequest>();
+        if (!heartbeat_msg) {
             continue;
         }
 
         spdlog::debug("Received heartbeat: username={}, ip={}, timestamp={}",
-                      heartbeat_msg.username(),
-                      heartbeat_msg.ip_address(),
-                      heartbeat_msg.timestamp_ms());
+                      heartbeat_msg->username(),
+                      heartbeat_msg->ip_address(),
+                      heartbeat_msg->timestamp_ms());
 
-        update_online_list(std::move(heartbeat_msg));
+        update_online_list(std::move(*heartbeat_msg));
     }
 }
 

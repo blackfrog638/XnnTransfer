@@ -7,7 +7,6 @@
 #include <asio/ip/udp.hpp>
 #include <string_view>
 
-
 namespace core::net::io {
 class UdpSender {
     // the UDP sender does not maintain a persistent connection.
@@ -23,6 +22,16 @@ class UdpSender {
     asio::awaitable<void> send_to(ConstDataBlock data,
                                   std::string_view host = kMulticastAddress,
                                   uint16_t port = kMulticastPort);
+
+    // Template method to send protobuf messages directly
+    template<util::ProtobufMessage T>
+    asio::awaitable<void> send_message_to(const T& message,
+                                          std::string_view host = kMulticastAddress,
+                                          uint16_t port = kMulticastPort) {
+        auto serialized = util::serialize_message(message);
+        ConstDataBlock data(serialized.data(), serialized.size());
+        co_await send_to(data, host, port);
+    }
 
   private:
     Executor& executor_;

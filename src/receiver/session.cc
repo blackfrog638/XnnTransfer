@@ -2,7 +2,6 @@
 #include "asio/awaitable.hpp"
 #include "single_file_receiver.h"
 #include "transfer.pb.h"
-#include "util/data_block.h"
 #include <asio/use_awaitable.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -22,21 +21,7 @@ Session::Session(core::Executor& executor)
 
 asio::awaitable<std::optional<transfer::TransferMetadataRequest>> Session::receive_metadata(
     std::vector<std::byte>& buffer) {
-    MutDataBlock buf_span(buffer.data(), buffer.size());
-    co_await tcp_receiver_.receive(buf_span);
-
-    if (buf_span.empty()) {
-        co_return std::nullopt;
-    }
-
-    std::string serialized_metadata(reinterpret_cast<const char*>(buf_span.data()), buf_span.size());
-    transfer::TransferMetadataRequest metadata;
-    if (!metadata.ParseFromString(serialized_metadata)) {
-        spdlog::error("Failed to parse TransferMetadataRequest");
-        co_return std::nullopt;
-    }
-
-    co_return metadata;
+    co_return co_await tcp_receiver_.receive_message<transfer::TransferMetadataRequest>();
 }
 
 std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>> Session::create_receivers(
@@ -49,7 +34,8 @@ std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>> Session::cr
         const auto& fi = metadata.files(i);
         file_infos.push_back(fi);
         auto& stored = file_infos.back();
-        receivers.emplace(stored.relative_path(), std::make_unique<SingleFileReceiver>(stored));
+        receivers.emplace(stored.relative_path(),
+                          std::make_unique<SingleFileReceiver>(executor_, stored, tcp_receiver_));
     }
 
     return receivers;
@@ -57,21 +43,7 @@ std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>> Session::cr
 
 asio::awaitable<std::optional<transfer::FileChunkRequest>> Session::receive_chunk(
     std::vector<std::byte>& buffer) {
-    MutDataBlock buf_span(buffer.data(), buffer.size());
-    co_await tcp_receiver_.receive(buf_span);
-
-    if (buf_span.empty()) {
-        co_return std::nullopt; // connection closed
-    }
-
-    std::string chunk_serialized(reinterpret_cast<const char*>(buf_span.data()), buf_span.size());
-    transfer::FileChunkRequest chunk;
-    if (!chunk.ParseFromString(chunk_serialized)) {
-        spdlog::warn("Failed to parse FileChunkRequest");
-        co_return std::nullopt;
-    }
-
-    co_return chunk;
+    co_return co_await tcp_receiver_.receive_message<transfer::FileChunkRequest>();
 }
 
 void Session::dispatch_chunk(
@@ -122,6 +94,7 @@ asio::awaitable<void> Session::receive() {
             }
         }
     }
+
     co_return;
 }
 } // namespace receiver

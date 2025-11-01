@@ -3,7 +3,6 @@
 #include "asio/awaitable.hpp"
 #include "core/executor.h"
 #include "core/net/io/tcp_receiver.h"
-#include "core/net/io/tcp_sender.h"
 #include "single_file_receiver.h"
 #include "transfer.pb.h"
 #include <asio/ip/tcp.hpp>
@@ -29,7 +28,7 @@ class Session {
     asio::awaitable<std::optional<transfer::TransferMetadataRequest>> receive_metadata(
         std::vector<std::byte>& buffer);
 
-    static std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>> create_receivers(
+    std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>> create_receivers(
         const transfer::TransferMetadataRequest& metadata,
         std::vector<transfer::FileInfoRequest>& file_infos);
 
