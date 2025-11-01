@@ -37,6 +37,9 @@ class SingleFileSender {
 
     transfer::FileInfoRequest& file_info() { return file_info_; }
 
+    // 等待文件发送完成的确认
+    asio::awaitable<bool> wait_for_file_completion();
+
   private:
     struct ChunkData {
         std::string payload;
@@ -49,6 +52,9 @@ class SingleFileSender {
                                         bool is_last_chunk);
 
     asio::awaitable<void> send_chunk(const ChunkData& chunk, uint64_t index);
+
+    // 接收并处理 chunk response
+    asio::awaitable<void> receive_chunk_response(uint64_t index);
 
     std::string_view& session_id_;
     core::Executor& executor_;
@@ -63,5 +69,8 @@ class SingleFileSender {
     uint64_t chunks_count_ = 0;
 
     std::vector<ChunkStatus> status_;
+
+    std::atomic<uint64_t> chunks_confirmed_{0};
+    std::atomic<bool> file_completed_{false};
 };
 } // namespace sender

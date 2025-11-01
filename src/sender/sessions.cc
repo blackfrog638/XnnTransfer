@@ -1,11 +1,11 @@
 #include "asio/awaitable.hpp"
 #include "session.h"
 #include "single_file_sender.h"
-#include "util/data_block.h"
 #include "util/network.h"
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <system_error>
 
@@ -80,20 +80,48 @@ void Session::prepare_metadata_request() {
     metadata_request_.set_total_size(total_size);
 }
 
-asio::awaitable<void> Session::send() {
-    std::string metadata_payload;
-    if (!metadata_request_.SerializeToString(&metadata_payload)) {
-        co_return;
+asio::awaitable<bool> Session::send_metadata_and_wait_ready() {
+    co_await tcp_sender_.send_message(metadata_request_);
+
+    auto response = co_await tcp_sender_.receive_message<transfer::TransferMetadataResponse>();
+    if (!response) {
+        spdlog::error("Failed to receive TransferMetadataResponse");
+        co_return false;
     }
 
-    ConstDataBlock metadata_block{reinterpret_cast<const std::byte*>(metadata_payload.data()),
-                                  metadata_payload.size()};
+    if (response->status()
+        != transfer::TransferMetadataResponse::Status::TransferMetadataResponse_Status_READY) {
+        spdlog::error("Receiver not ready, status: {}", static_cast<int>(response->status()));
+        co_return false;
+    }
 
-    co_await tcp_sender_.send(metadata_block);
+    spdlog::info("Receiver is ready, starting file transfer");
+    co_return true;
+}
+
+asio::awaitable<void> Session::wait_for_completion() {
+    for (auto& file_sender : file_senders_) {
+        bool success = co_await file_sender->wait_for_file_completion();
+        if (success) {
+            spdlog::info("File transfer completed successfully: {}",
+                         file_sender->file_info().relative_path());
+        } else {
+            spdlog::error("File transfer failed: {}", file_sender->file_info().relative_path());
+        }
+    }
+    co_return;
+}
+
+asio::awaitable<void> Session::send() {
+    bool ready = co_await send_metadata_and_wait_ready();
+    if (!ready) {
+        co_return;
+    }
 
     for (auto& file_sender : file_senders_) {
         executor_.spawn(file_sender->send());
     }
+    co_await wait_for_completion();
 
     co_return;
 }

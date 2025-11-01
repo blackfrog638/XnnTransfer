@@ -64,6 +64,28 @@ void Session::dispatch_chunk(
     });
 }
 
+asio::awaitable<void> Session::send_metadata_response(
+    const transfer::TransferMetadataRequest& metadata,
+    transfer::TransferMetadataResponse::Status status) {
+    transfer::TransferMetadataResponse response;
+    response.set_session_id(metadata.session_id());
+    response.set_source(metadata.source());
+    response.set_destination(metadata.destination());
+    response.set_status(status);
+
+    if (status
+        == transfer::TransferMetadataResponse::Status::TransferMetadataResponse_Status_READY) {
+        response.set_message("Ready to receive files");
+        spdlog::info("Sending ready response for session {}", metadata.session_id());
+    } else {
+        response.set_message("Failed to prepare for file reception");
+        spdlog::error("Sending error response for session {}", metadata.session_id());
+    }
+
+    co_await tcp_receiver_.send_message(response);
+    co_return;
+}
+
 asio::awaitable<void> Session::receive() {
     std::vector<std::byte> buffer(kBufferSize);
 
@@ -75,6 +97,9 @@ asio::awaitable<void> Session::receive() {
 
     std::vector<transfer::FileInfoRequest> file_infos;
     auto receivers = create_receivers(metadata, file_infos);
+
+    co_await send_metadata_response(
+        metadata, transfer::TransferMetadataResponse::Status::TransferMetadataResponse_Status_READY);
 
     std::unordered_set<std::string> completed_files;
 

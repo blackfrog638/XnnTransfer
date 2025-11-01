@@ -1,7 +1,10 @@
 #include "single_file_sender.h"
 #include "transfer.pb.h"
 #include "util/hash.h"
+#include <asio/steady_timer.hpp>
+#include <chrono>
 #include <fstream>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -112,10 +115,76 @@ std::optional<SingleFileSender::ChunkData> SingleFileSender::load_chunk(
 }
 
 asio::awaitable<void> SingleFileSender::send_chunk(const ChunkData& chunk, uint64_t index) {
-    status_[static_cast<std::size_t>(index)] = ChunkStatus::Sending;
+    status_[index] = ChunkStatus::Sending;
     co_await tcp_sender_.send(make_block(chunk.payload));
-    status_[static_cast<std::size_t>(index)] = ChunkStatus::Sent;
+    status_[index] = ChunkStatus::Sent;
     bytes_sent_ += chunk.size;
+
+    executor_.spawn(receive_chunk_response(index));
+}
+
+asio::awaitable<void> SingleFileSender::receive_chunk_response(uint64_t index) {
+    auto response = co_await tcp_sender_.receive_message<transfer::FileChunkResponse>();
+    if (!response) {
+        spdlog::warn("Failed to receive FileChunkResponse for chunk {}", index);
+        status_[index] = ChunkStatus::Failed;
+        co_return;
+    }
+
+    if (response->chunk_index() != index) {
+        spdlog::warn("Received response for wrong chunk index: expected {}, got {}",
+                     index,
+                     response->chunk_index());
+        status_[index] = ChunkStatus::Failed;
+        co_return;
+    }
+
+    if (response->status()
+        == transfer::FileChunkResponse::Status::FileChunkResponse_Status_RECEIVED) {
+        chunks_confirmed_.fetch_add(1);
+        status_[index] = ChunkStatus::Sent;
+        spdlog::debug("Chunk {} confirmed for file {}", index, relative_path_.string());
+    } else {
+        status_[index] = ChunkStatus::Failed;
+        spdlog::error("Chunk {} failed for file {}", index, relative_path_.string());
+    }
+
+    co_return;
+}
+
+asio::awaitable<bool> SingleFileSender::wait_for_file_completion() {
+    // 等待所有 chunks 被确认
+    using namespace std::chrono_literals;
+    const auto timeout = std::chrono::seconds(30);
+    const auto start = std::chrono::steady_clock::now();
+
+    while (chunks_confirmed_.load() < chunks_count_) {
+        if (std::chrono::steady_clock::now() - start > timeout) {
+            spdlog::error("Timeout waiting for file completion: {}", relative_path_.string());
+            co_return false;
+        }
+
+        asio::steady_timer timer(co_await asio::this_coro::executor, 100ms);
+        co_await timer.async_wait(asio::use_awaitable);
+    }
+
+    // 等待接收 FileInfoResponse
+    auto response = co_await tcp_sender_.receive_message<transfer::FileInfoResponse>();
+    if (!response) {
+        spdlog::error("Failed to receive FileInfoResponse for file {}", relative_path_.string());
+        co_return false;
+    }
+
+    if (response->status() == transfer::FileInfoResponse::Status::FileInfoResponse_Status_READY) {
+        file_completed_.store(true);
+        spdlog::info("File transfer completed and verified: {}", relative_path_.string());
+        co_return true;
+    } else {
+        spdlog::error("File transfer failed for {}: {}",
+                      relative_path_.string(),
+                      response->message());
+        co_return false;
+    }
 }
 
 } // namespace sender

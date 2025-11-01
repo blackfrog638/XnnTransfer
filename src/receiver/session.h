@@ -39,6 +39,9 @@ class Session {
         const transfer::FileChunkRequest& chunk,
         std::unordered_map<std::string, std::unique_ptr<SingleFileReceiver>>& receivers);
 
+    asio::awaitable<void> send_metadata_response(const transfer::TransferMetadataRequest& metadata,
+                                                 transfer::TransferMetadataResponse::Status status);
+
     core::Executor& executor_;
     std::string_view session_id_;
     asio::ip::tcp::socket socket_;

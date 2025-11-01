@@ -44,6 +44,10 @@ class Session {
     void prepare_filepaths();
     void prepare_metadata_request();
 
+    asio::awaitable<bool> send_metadata_and_wait_ready();
+
+    asio::awaitable<void> wait_for_completion();
+
     core::Executor& executor_;
     std::string_view destination_;
     asio::ip::tcp::socket socket_;
