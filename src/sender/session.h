@@ -1,67 +1,42 @@
 #pragma once
-
 #include "asio/awaitable.hpp"
-#include "core/executor.h"
-#include "core/net/io/tcp_sender.h"
-#include "sender/single_file_sender.h"
+#include "single_file_sender.h"
 #include "transfer.pb.h"
-#include <asio/ip/tcp.hpp>
-#include <filesystem>
+#include <core/net/io/session.h>
 #include <memory>
-#include <util/uuid.h>
-#include <utility>
-#include <vector>
+#include <optional>
+#include <session.pb.h>
 
 namespace sender {
 
-class Session {
+class Session : public core::net::io::Session {
   public:
     template<typename... FilePaths>
-    Session(core::Executor& executor, std::string_view destination, FilePaths&&... filepaths)
-        : executor_(executor)
-        , destination_(destination)
-        , socket_(executor_.get_io_context())
-        , tcp_sender_(executor_, socket_, destination, 0) // TODO: add port parameter
-        , filepaths_{std::filesystem::path(std::forward<FilePaths>(filepaths))...} {
-        session_id_ = util::generate_uuid();
-        session_id_view_ = session_id_;
-        prepare_filepaths();
-        prepare_metadata_request();
-    }
-    ~Session() = default;
+    Session(core::Executor& executor, std::string_view host, uint16_t port, FilePaths&&... paths)
+        : core::net::io::Session(executor, host, port)
+        , paths_{std::filesystem::path(std::forward<FilePaths>(paths))...} {}
 
-    Session(const Session&) = delete;
-    Session& operator=(const Session&) = delete;
-
-    asio::awaitable<void> send();
-
-    const transfer::TransferMetadataRequest& metadata_request() const { return metadata_request_; }
-
-    std::string session_id_;
-    std::string_view session_id_view_;
+    asio::awaitable<void> start() override;
 
   private:
-    void prepare_filepaths();
-    void prepare_metadata_request();
+    asio::awaitable<void> handle_message(const MessageWrapper& message) override;
 
-    asio::awaitable<bool> send_metadata_and_wait_ready();
+    void prepare_file_paths();
 
-    asio::awaitable<void> wait_for_completion();
+    std::optional<std::size_t> find_file_index(const std::string& relative_path) const;
 
-    core::Executor& executor_;
-    std::string_view destination_;
-    asio::ip::tcp::socket socket_;
-    core::net::io::TcpSender tcp_sender_;
-    std::vector<std::filesystem::path> filepaths_;
+    SingleFileSender* find_file_sender(const std::string& relative_path);
+
+    std::vector<std::filesystem::path> paths_;
+    std::vector<std::unique_ptr<SingleFileSender>> file_senders_;
 
     struct FilePath {
         std::filesystem::path relative;
         std::filesystem::path absolute;
+        enum class Status { Succeeded, Failed, InProgress } status{Status::InProgress};
+        std::size_t file_index; // 索引位置，对应 metadata_request.files(file_index)
     };
     std::vector<FilePath> file_paths_;
-
     transfer::TransferMetadataRequest metadata_request_;
-    std::vector<std::unique_ptr<SingleFileSender>> file_senders_;
 };
-
 } // namespace sender

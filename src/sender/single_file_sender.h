@@ -1,76 +1,40 @@
 #pragma once
 
-#include "asio/awaitable.hpp"
 #include "core/executor.h"
-#include "core/net/io/tcp_sender.h"
+#include "core/net/io/session.h"
 #include "transfer.pb.h"
-#include <asio/ip/tcp.hpp>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <vector>
 
 namespace sender {
-constexpr uint64_t kChunkSize = 1 * 1024 * 1024;
-constexpr uint16_t kTargetPort = 14648;
-
-enum class ChunkStatus { Waiting, Reading, Pending, Sending, Sent, Failed };
-
 class SingleFileSender {
   public:
     SingleFileSender(core::Executor& executor,
-                     core::net::io::TcpSender& tcp_sender,
-                     std::string_view& session_id,
-                     std::filesystem::path& file_path,
-                     std::filesystem::path& relative_path);
+                     core::net::io::Session& session,
+                     transfer::FileInfoRequest& file);
     ~SingleFileSender() = default;
 
     SingleFileSender(const SingleFileSender&) = delete;
     SingleFileSender& operator=(const SingleFileSender&) = delete;
 
-    asio::awaitable<void> send();
+    asio::awaitable<void> send_file();
+    asio::awaitable<void> send_chunk(std::uint64_t chunk_index);
 
-    const std::vector<ChunkStatus>& status() const { return status_; }
-
-    transfer::FileInfoRequest& file_info() { return file_info_; }
-
-    // 等待文件发送完成的确认
-    asio::awaitable<bool> wait_for_file_completion();
+    void update_chunk_status(std::uint64_t chunk_index, bool success);
 
   private:
-    struct ChunkData {
-        std::string payload;
-        std::size_t size = 0;
-    };
-    std::optional<ChunkData> load_chunk(std::ifstream& input,
-                                        std::vector<std::byte>& buffer,
-                                        uint64_t index,
-                                        std::string_view& session_id,
-                                        bool is_last_chunk);
-
-    asio::awaitable<void> send_chunk(const ChunkData& chunk, uint64_t index);
-
-    // 接收并处理 chunk response
-    asio::awaitable<void> receive_chunk_response(uint64_t index);
-
-    std::string_view& session_id_;
     core::Executor& executor_;
-    core::net::io::TcpSender& tcp_sender_;
-    std::filesystem::path& relative_path_;
-    std::filesystem::path& file_path_;
+    struct ChunkInfo {
+        enum class Status { InProgress, Completed, Failed };
+        Status status;
+        std::uint32_t offset;
+        std::uint32_t size;
+    };
+    std::vector<ChunkInfo> chunks_;
 
-    transfer::FileInfoRequest file_info_;
-
-    uint64_t file_size_ = 0;
-    uint64_t bytes_sent_ = 0;
-    uint64_t chunks_count_ = 0;
-
-    std::vector<ChunkStatus> status_;
-
-    std::atomic<uint64_t> chunks_confirmed_{0};
-    std::atomic<bool> file_completed_{false};
+    core::net::io::Session& session_;
+    std::filesystem::path file_path_;
+    std::uint64_t size_;
+    std::string hash_;
 };
 } // namespace sender

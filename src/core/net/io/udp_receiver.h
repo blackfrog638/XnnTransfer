@@ -28,23 +28,40 @@ class UdpReceiver {
 
     asio::awaitable<std::size_t> receive(MutDataBlock& buffer);
 
-    // Template method to receive protobuf messages directly
+    // 获取可复用的接收缓冲区
+    std::vector<std::byte>& get_receive_buffer() { return receive_buffer_; }
+
+    // 优化的 Protobuf 接收：使用 ParseFromArray + 可复用 Buffer
     template<util::ProtobufMessage T>
     asio::awaitable<std::optional<T>> receive_message() {
-        std::vector<std::byte> buffer(65536); // Max UDP datagram size
-        MutDataBlock buf_span(buffer.data(), buffer.size());
+        // 确保接收 buffer 足够大（UDP 最大数据报大小）
+        constexpr size_t kMaxUdpSize = 65536;
+        if (receive_buffer_.size() < kMaxUdpSize) {
+            receive_buffer_.resize(kMaxUdpSize);
+        }
+
+        MutDataBlock buf_span(receive_buffer_.data(), receive_buffer_.size());
         std::size_t bytes_received = co_await receive(buf_span);
 
         if (bytes_received == 0) {
             co_return std::nullopt;
         }
 
-        co_return util::deserialize_message<T>(buf_span);
+        // 直接从 buffer 解析（零拷贝）
+        T message;
+        if (!message.ParseFromArray(receive_buffer_.data(), static_cast<int>(bytes_received))) {
+            co_return std::nullopt;
+        }
+
+        co_return message;
     }
 
   private:
     Executor& executor_;
     asio::ip::udp::socket& socket_;
     bool multicast_joined_ = false;
+
+    // 可复用的接收缓冲区，避免频繁内存分配
+    std::vector<std::byte> receive_buffer_;
 };
 } // namespace core::net::io

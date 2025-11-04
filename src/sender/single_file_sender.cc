@@ -1,190 +1,119 @@
+#pragma once
 #include "single_file_sender.h"
-#include "transfer.pb.h"
-#include "util/hash.h"
-#include <asio/steady_timer.hpp>
-#include <chrono>
+#include "util/data_block.h"
 #include <fstream>
 #include <spdlog/spdlog.h>
-#include <string>
-#include <system_error>
-#include <vector>
-
-namespace {
-ConstDataBlock make_block(const std::string& payload) {
-    return {reinterpret_cast<const std::byte*>(payload.data()), payload.size()};
-}
-} // namespace
 
 namespace sender {
+
 SingleFileSender::SingleFileSender(core::Executor& executor,
-                                   core::net::io::TcpSender& tcp_sender,
-                                   std::string_view& session_id,
-                                   std::filesystem::path& file_path,
-                                   std::filesystem::path& relative_path)
+                                   core::net::io::Session& session,
+                                   transfer::FileInfoRequest& file)
     : executor_(executor)
-    , tcp_sender_(tcp_sender)
-    , session_id_(session_id)
-    , relative_path_(relative_path)
-    , file_path_(file_path) {
-    std::error_code ec;
-    file_size_ = std::filesystem::file_size(file_path_, ec);
-    if (ec) {
-        return;
-    }
+    , session_(session)
+    , size_(file.size())
+    , file_path_(file.relative_path())
+    , hash_(file.hash()) {}
 
-    chunks_count_ = (file_size_ + kChunkSize - 1) / kChunkSize;
-    status_.assign(static_cast<std::size_t>(chunks_count_), ChunkStatus::Waiting);
-    bytes_sent_ = 0;
-
-    auto file_hash_hex = util::hash::sha256_file_hex(file_path_);
-    if (!file_hash_hex) {
-        return;
-    }
-
-    file_info_.set_size(file_size_);
-    file_info_.set_relative_path(relative_path_.string());
-    file_info_.set_hash(*file_hash_hex);
-}
-
-asio::awaitable<void> SingleFileSender::send() {
-    if (chunks_count_ == 0) {
+asio::awaitable<void> SingleFileSender::send_file() {
+    std::ifstream file(file_path_, std::ios::binary);
+    if (!file) {
+        spdlog::error("[SingleFileSender::send_file] Failed to open file: {}", file_path_.string());
         co_return;
     }
 
-    std::ifstream input(file_path_, std::ios::binary);
-    if (!input) {
-        co_return;
-    }
+    std::vector<std::byte> buffer(kDefaultBufferSize);
 
-    std::vector<std::byte> buffer(static_cast<std::size_t>(kChunkSize));
+    uint64_t chunk_index = 0;
+    uint64_t bytes_sent = 0;
 
-    for (uint64_t index = 0; index < chunks_count_; ++index) {
-        const bool is_last_chunk = (index + 1 == chunks_count_);
-        auto chunk_data = load_chunk(input, buffer, index, session_id_, is_last_chunk);
-        if (!chunk_data) {
-            break;
+    while (file && bytes_sent < size_) {
+        file.read(reinterpret_cast<char*>(buffer.data()), kDefaultBufferSize);
+        const auto bytes_read = static_cast<std::size_t>(file.gcount());
+
+        if (bytes_read > 0) {
+            transfer::FileChunkRequest chunk_request;
+            chunk_request.set_file_relative_path(file_path_.string());
+            chunk_request.set_chunk_index(chunk_index);
+            chunk_request.set_data(buffer.data(), bytes_read);
+            chunk_request.set_hash(hash_);
+
+            bytes_sent += bytes_read;
+            chunk_request.set_is_last_chunk(bytes_sent >= size_);
+
+            chunks_.emplace_back(ChunkInfo::Status::InProgress, bytes_sent - bytes_read, bytes_read);
+
+            executor_.spawn(session_.send(chunk_request));
+
+            chunk_index++;
         }
-
-        executor_.spawn(send_chunk(*chunk_data, index));
     }
+
+    if (file.bad()) {
+        spdlog::error("[SingleFileSender::send_file] Error reading file: {}", file_path_.string());
+        co_return;
+    }
+
+    spdlog::info("[SingleFileSender::send_file] File sent successfully: {}, {} chunks",
+                 file_path_.string(),
+                 chunk_index);
     co_return;
 }
 
-std::optional<SingleFileSender::ChunkData> SingleFileSender::load_chunk(
-    std::ifstream& input,
-    std::vector<std::byte>& buffer,
-    uint64_t index,
-    std::string_view& session_id,
-    bool is_last_chunk) {
-    const auto slot = static_cast<std::size_t>(index);
-    if (slot >= status_.size()) {
-        return std::nullopt;
-    }
-
-    status_[slot] = ChunkStatus::Reading;
-    input.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
-    const auto read_bytes = static_cast<std::size_t>(input.gcount());
-    if (read_bytes == 0) {
-        status_[slot] = ChunkStatus::Failed;
-        return std::nullopt;
-    }
-
-    ConstDataBlock chunk_block(buffer.data(), read_bytes);
-    auto chunk_hash = util::hash::sha256_hex(chunk_block);
-    if (!chunk_hash) {
-        status_[slot] = ChunkStatus::Failed;
-        return std::nullopt;
-    }
-
-    transfer::FileChunkRequest chunk;
-    chunk.set_session_id(session_id);
-    chunk.set_chunk_index(index);
-    chunk.set_data(reinterpret_cast<const char*>(buffer.data()), read_bytes);
-    chunk.set_hash(*chunk_hash);
-    chunk.set_is_last_chunk(is_last_chunk);
-
-    ChunkData result{};
-    if (!chunk.SerializeToString(&result.payload)) {
-        status_[slot] = ChunkStatus::Failed;
-        return std::nullopt;
-    }
-
-    result.size = read_bytes;
-    status_[slot] = ChunkStatus::Pending;
-    return result;
-}
-
-asio::awaitable<void> SingleFileSender::send_chunk(const ChunkData& chunk, uint64_t index) {
-    status_[index] = ChunkStatus::Sending;
-    co_await tcp_sender_.send(make_block(chunk.payload));
-    status_[index] = ChunkStatus::Sent;
-    bytes_sent_ += chunk.size;
-
-    executor_.spawn(receive_chunk_response(index));
-}
-
-asio::awaitable<void> SingleFileSender::receive_chunk_response(uint64_t index) {
-    auto response = co_await tcp_sender_.receive_message<transfer::FileChunkResponse>();
-    if (!response) {
-        spdlog::warn("Failed to receive FileChunkResponse for chunk {}", index);
-        status_[index] = ChunkStatus::Failed;
+asio::awaitable<void> SingleFileSender::send_chunk(std::uint64_t chunk_index) {
+    if (chunk_index >= chunks_.size()) {
         co_return;
     }
 
-    if (response->chunk_index() != index) {
-        spdlog::warn("Received response for wrong chunk index: expected {}, got {}",
-                     index,
-                     response->chunk_index());
-        status_[index] = ChunkStatus::Failed;
+    const auto& chunk = chunks_[chunk_index];
+    if (chunk.status == ChunkInfo::Status::Completed) {
         co_return;
     }
 
-    if (response->status()
-        == transfer::FileChunkResponse::Status::FileChunkResponse_Status_RECEIVED) {
-        chunks_confirmed_.fetch_add(1);
-        status_[index] = ChunkStatus::Sent;
-        spdlog::debug("Chunk {} confirmed for file {}", index, relative_path_.string());
-    } else {
-        status_[index] = ChunkStatus::Failed;
-        spdlog::error("Chunk {} failed for file {}", index, relative_path_.string());
+    std::ifstream file(file_path_, std::ios::binary);
+    if (!file) {
+        spdlog::error("[SingleFileSender::send_chunk] Failed to open file: {}", file_path_.string());
+        co_return;
+    }
+
+    file.seekg(chunk.offset);
+    std::vector<std::byte> buffer(chunk.size);
+    file.read(reinterpret_cast<char*>(buffer.data()), chunk.size);
+    const auto bytes_read = static_cast<std::size_t>(file.gcount());
+
+    if (bytes_read > 0) {
+        transfer::FileChunkRequest chunk_request;
+        chunk_request.set_file_relative_path(file_path_.string());
+        chunk_request.set_chunk_index(chunk_index);
+        chunk_request.set_data(buffer.data(), bytes_read);
+        chunk_request.set_hash(hash_);
+
+        executor_.spawn(session_.send(chunk_request));
     }
 
     co_return;
 }
 
-asio::awaitable<bool> SingleFileSender::wait_for_file_completion() {
-    // 等待所有 chunks 被确认
-    using namespace std::chrono_literals;
-    const auto timeout = std::chrono::seconds(30);
-    const auto start = std::chrono::steady_clock::now();
-
-    while (chunks_confirmed_.load() < chunks_count_) {
-        if (std::chrono::steady_clock::now() - start > timeout) {
-            spdlog::error("Timeout waiting for file completion: {}", relative_path_.string());
-            co_return false;
-        }
-
-        asio::steady_timer timer(co_await asio::this_coro::executor, 100ms);
-        co_await timer.async_wait(asio::use_awaitable);
+void SingleFileSender::update_chunk_status(std::uint64_t chunk_index, bool success) {
+    if (chunk_index >= chunks_.size()) {
+        spdlog::warn("[SingleFileSender::update_chunk_status] Invalid chunk index {} for file {}",
+                     chunk_index,
+                     file_path_.string());
+        return;
     }
 
-    // 等待接收 FileInfoResponse
-    auto response = co_await tcp_sender_.receive_message<transfer::FileInfoResponse>();
-    if (!response) {
-        spdlog::error("Failed to receive FileInfoResponse for file {}", relative_path_.string());
-        co_return false;
-    }
-
-    if (response->status() == transfer::FileInfoResponse::Status::FileInfoResponse_Status_READY) {
-        file_completed_.store(true);
-        spdlog::info("File transfer completed and verified: {}", relative_path_.string());
-        co_return true;
+    auto& chunk = chunks_[chunk_index];
+    if (success) {
+        chunk.status = ChunkInfo::Status::Completed;
+        spdlog::debug(
+            "[SingleFileSender::update_chunk_status] Chunk {} of file {} marked as completed",
+            chunk_index,
+            file_path_.string());
     } else {
-        spdlog::error("File transfer failed for {}: {}",
-                      relative_path_.string(),
-                      response->message());
-        co_return false;
+        chunk.status = ChunkInfo::Status::Failed;
+        spdlog::warn("[SingleFileSender::update_chunk_status] Chunk {} of file {} marked as failed",
+                     chunk_index,
+                     file_path_.string());
     }
 }
-
 } // namespace sender

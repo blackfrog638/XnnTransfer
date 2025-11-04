@@ -2,39 +2,68 @@
 
 #include <concepts>
 #include <cstddef>
-#include <cstring>
 #include <optional>
 #include <span>
-#include <string>
 #include <vector>
 
 using MutDataBlock = std::span<std::byte>;
 using ConstDataBlock = std::span<const std::byte>;
 
+constexpr size_t kDefaultBufferSize = 1024 * 1024 + 512;
+
 namespace util {
+
 template<typename T>
-concept ProtobufMessage = requires(T msg, const std::string& str) {
-    { msg.SerializeAsString() } -> std::same_as<std::string>;
-    { msg.ParseFromString(str) } -> std::same_as<bool>;
+concept ProtobufMessage = requires(T msg, void* ptr, int size) {
+    { msg.ByteSizeLong() } -> std::same_as<size_t>;
+    { msg.SerializeToArray(ptr, size) } -> std::same_as<bool>;
+    { msg.ParseFromArray(ptr, size) } -> std::same_as<bool>;
 };
 
 template<ProtobufMessage T>
-std::vector<std::byte> serialize_message(const T& message) {
-    std::string serialized = message.SerializeAsString();
-    std::vector<std::byte> buffer(serialized.size());
-    std::memcpy(buffer.data(), serialized.data(), serialized.size());
-    return buffer;
+ConstDataBlock serialize(const T& message, std::vector<std::byte>& buffer) {
+    const size_t size = message.ByteSizeLong();
+    if (buffer.size() < size) {
+        buffer.resize(size);
+    }
+
+    if (!message.SerializeToArray(buffer.data(), static_cast<int>(size))) {
+        return {};
+    }
+
+    return ConstDataBlock(buffer.data(), size);
 }
 
 template<ProtobufMessage T>
-std::optional<T> deserialize_message(std::span<const std::byte> data) {
+ConstDataBlock serialize(const T& message, MutDataBlock buffer) {
+    const size_t size = message.ByteSizeLong();
+    if (buffer.size() < size) {
+        return {};
+    }
+
+    if (!message.SerializeToArray(buffer.data(), static_cast<int>(size))) {
+        return {};
+    }
+
+    return ConstDataBlock(buffer.data(), size);
+}
+
+template<ProtobufMessage T>
+bool deserialize(ConstDataBlock data, T& message) {
+    if (data.empty()) {
+        return false;
+    }
+    return message.ParseFromArray(data.data(), static_cast<int>(data.size()));
+}
+
+template<ProtobufMessage T>
+std::optional<T> deserialize(ConstDataBlock data) {
     if (data.empty()) {
         return std::nullopt;
     }
 
     T message;
-    std::string serialized(reinterpret_cast<const char*>(data.data()), data.size());
-    if (!message.ParseFromString(serialized)) {
+    if (!message.ParseFromArray(data.data(), static_cast<int>(data.size()))) {
         return std::nullopt;
     }
 
