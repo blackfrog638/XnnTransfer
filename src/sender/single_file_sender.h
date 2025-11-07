@@ -11,7 +11,8 @@ class SingleFileSender {
   public:
     SingleFileSender(core::Executor& executor,
                      core::net::io::Session& session,
-                     transfer::FileInfoRequest& file);
+                     transfer::FileInfoRequest& file,
+                     const std::filesystem::path& absolute_path);
     ~SingleFileSender() = default;
 
     SingleFileSender(const SingleFileSender&) = delete;
@@ -33,7 +34,8 @@ class SingleFileSender {
     std::vector<ChunkInfo> chunks_;
 
     core::net::io::Session& session_;
-    std::filesystem::path file_path_;
+    std::filesystem::path file_path_; // 绝对路径，用于读取文件
+    std::string relative_path_;       // 相对路径，用于协议
     std::uint64_t size_;
     std::string hash_;
 };

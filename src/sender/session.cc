@@ -109,7 +109,8 @@ asio::awaitable<void> Session::handle_message(const MessageWrapper& message) {
                     std::make_unique<SingleFileSender>(executor_,
                                                        *this,
                                                        *metadata_request_.mutable_files(
-                                                           static_cast<int>(file_path.file_index))));
+                                                           static_cast<int>(file_path.file_index)),
+                                                       file_path.absolute));
             }
             for (auto& sender : file_senders_) {
                 executor_.spawn(sender->send_file());

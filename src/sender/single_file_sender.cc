@@ -8,11 +8,13 @@ namespace sender {
 
 SingleFileSender::SingleFileSender(core::Executor& executor,
                                    core::net::io::Session& session,
-                                   transfer::FileInfoRequest& file)
+                                   transfer::FileInfoRequest& file,
+                                   const std::filesystem::path& absolute_path)
     : executor_(executor)
     , session_(session)
     , size_(file.size())
-    , file_path_(file.relative_path())
+    , file_path_(absolute_path)
+    , relative_path_(file.relative_path())
     , hash_(file.hash()) {}
 
 asio::awaitable<void> SingleFileSender::send_file() {
@@ -33,7 +35,7 @@ asio::awaitable<void> SingleFileSender::send_file() {
 
         if (bytes_read > 0) {
             transfer::FileChunkRequest chunk_request;
-            chunk_request.set_file_relative_path(file_path_.string());
+            chunk_request.set_file_relative_path(relative_path_);
             chunk_request.set_chunk_index(chunk_index);
             chunk_request.set_data(buffer.data(), bytes_read);
             chunk_request.set_hash(hash_);
@@ -83,7 +85,7 @@ asio::awaitable<void> SingleFileSender::send_chunk(std::uint64_t chunk_index) {
 
     if (bytes_read > 0) {
         transfer::FileChunkRequest chunk_request;
-        chunk_request.set_file_relative_path(file_path_.string());
+        chunk_request.set_file_relative_path(relative_path_);
         chunk_request.set_chunk_index(chunk_index);
         chunk_request.set_data(buffer.data(), bytes_read);
         chunk_request.set_hash(hash_);
