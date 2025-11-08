@@ -9,7 +9,8 @@
 using MutDataBlock = std::span<std::byte>;
 using ConstDataBlock = std::span<const std::byte>;
 
-constexpr size_t kDefaultBufferSize = 1024 * 1024 + 512;
+constexpr size_t kDefaultBufferSize = 1 * 1024 * 1024 + 512;
+constexpr size_t kDefaultChunkSize = 1 * 1024 * 1024;
 
 namespace util {
 

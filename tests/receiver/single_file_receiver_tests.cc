@@ -75,8 +75,8 @@ TEST_F(SingleFileReceiverTest, ReceiveSmallFileInSingleChunk) {
     auto hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 创建并处理块
@@ -117,8 +117,8 @@ TEST_F(SingleFileReceiverTest, ReceiveLargeFileInMultipleChunks) {
     auto file_hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(file_hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *file_hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 依次处理每个块
@@ -158,8 +158,8 @@ TEST_F(SingleFileReceiverTest, ReceiveFileWithSubdirectory) {
     auto hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 创建并处理块
@@ -188,8 +188,8 @@ TEST_F(SingleFileReceiverTest, ReceiveEmptyFile) {
     auto hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 创建并处理空块
@@ -209,39 +209,58 @@ TEST_F(SingleFileReceiverTest, ReceiveEmptyFile) {
     EXPECT_EQ(std::filesystem::file_size(file_path), 0);
 }
 
-TEST_F(SingleFileReceiverTest, RejectOutOfOrderChunks) {
-    std::string relative_path = "ordered.txt";
-    std::string chunk1_content = "First chunk";
-    std::string chunk2_content = "Second chunk";
+TEST_F(SingleFileReceiverTest, ReceiveChunksOutOfOrder) {
+    std::string relative_path = "out_of_order.txt";
+    
+    // 生成3个块的内容
+    constexpr size_t kChunkSize = 1024 * 1024; // 1MB per chunk
+    constexpr size_t kNumChunks = 3;
+    std::vector<std::string> chunks;
+    std::string full_content;
 
-    // 计算块的哈希
-    const std::byte* bytes1 = reinterpret_cast<const std::byte*>(chunk1_content.data());
-    ConstDataBlock block1(bytes1, chunk1_content.size());
-    auto hash1 = util::hash::sha256_hex(block1);
-    ASSERT_TRUE(hash1.has_value());
+    for (size_t i = 0; i < kNumChunks; ++i) {
+        std::string chunk_content = GenerateContent(kChunkSize);
+        chunks.push_back(chunk_content);
+        full_content += chunk_content;
+    }
 
-    const std::byte* bytes2 = reinterpret_cast<const std::byte*>(chunk2_content.data());
-    ConstDataBlock block2(bytes2, chunk2_content.size());
-    auto hash2 = util::hash::sha256_hex(block2);
-    ASSERT_TRUE(hash2.has_value());
+    // 计算完整文件的哈希
+    const std::byte* bytes = reinterpret_cast<const std::byte*>(full_content.data());
+    ConstDataBlock block(bytes, full_content.size());
+    auto file_hash = util::hash::sha256_hex(block);
+    ASSERT_TRUE(file_hash.has_value());
 
     // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, "");
+    receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
     ASSERT_TRUE(receiver.is_valid());
 
-    // 先发送第二个块（应该失败）
-    auto chunk2 = CreateChunk(relative_path, 1, chunk2_content, *hash2, false);
-    bool result = receiver.handle_chunk(chunk2);
-    EXPECT_FALSE(result) << "Should reject out-of-order chunk";
+    // 乱序接收：先接收块2，然后块0，最后块1（标记为最后一块）
+    std::vector<size_t> receive_order = {2, 0, 1};
+    
+    for (size_t idx = 0; idx < receive_order.size(); ++idx) {
+        size_t i = receive_order[idx];
+        const std::byte* chunk_bytes = reinterpret_cast<const std::byte*>(chunks[i].data());
+        ConstDataBlock chunk_block(chunk_bytes, chunks[i].size());
+        auto chunk_hash = util::hash::sha256_hex(chunk_block);
+        ASSERT_TRUE(chunk_hash.has_value());
 
-    // 发送第一个块（应该成功）
-    auto chunk1 = CreateChunk(relative_path, 0, chunk1_content, *hash1, false);
-    result = receiver.handle_chunk(chunk1);
-    EXPECT_TRUE(result);
+        bool is_last = (i == kNumChunks - 1); // 块1是最后一块
+        auto chunk_request = CreateChunk(relative_path, i, chunks[i], *chunk_hash, is_last);
 
-    // 现在发送第二个块（应该成功）
-    result = receiver.handle_chunk(chunk2);
-    EXPECT_TRUE(result);
+        bool result = receiver.handle_chunk(chunk_request);
+        EXPECT_TRUE(result) << "Failed to handle chunk " << i << " in out-of-order reception";
+    }
+
+    // 完成并验证
+    auto [ok, expected_hash, actual_hash] = receiver.finalize_and_verify();
+    EXPECT_TRUE(ok) << "File should be correctly assembled from out-of-order chunks";
+    EXPECT_EQ(expected_hash, *file_hash);
+    EXPECT_EQ(actual_hash, *file_hash);
+
+    // 验证文件内容
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(std::filesystem::exists(file_path));
+    EXPECT_TRUE(VerifyFile(file_path, full_content));
 }
 
 TEST_F(SingleFileReceiverTest, RejectChunkWithWrongHash) {
@@ -254,8 +273,8 @@ TEST_F(SingleFileReceiverTest, RejectChunkWithWrongHash) {
     auto correct_hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(correct_hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *correct_hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *correct_hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 使用错误的哈希创建块
@@ -271,8 +290,8 @@ TEST_F(SingleFileReceiverTest, HandleChunkWithoutHash) {
     std::string relative_path = "no_hash.txt";
     std::string content = "Content without hash verification";
 
-    // 创建接收器（不提供预期哈希）
-    receiver::SingleFileReceiver receiver(relative_path, "");
+    // 创建接收器（不提供预期哈希），传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, "", content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 创建块（不提供哈希）
@@ -302,8 +321,8 @@ TEST_F(SingleFileReceiverTest, VerifyFinalFileHash) {
     auto expected_file_hash = util::hash::sha256_hex(block);
     ASSERT_TRUE(expected_file_hash.has_value());
 
-    // 创建接收器
-    receiver::SingleFileReceiver receiver(relative_path, *expected_file_hash);
+    // 创建接收器，传递文件大小
+    receiver::SingleFileReceiver receiver(relative_path, *expected_file_hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 处理块（使用块哈希）
@@ -330,7 +349,7 @@ TEST_F(SingleFileReceiverTest, DetectCorruptedFile) {
     ASSERT_TRUE(original_hash.has_value());
 
     // 创建接收器，使用原始哈希
-    receiver::SingleFileReceiver receiver(relative_path, *original_hash);
+    receiver::SingleFileReceiver receiver(relative_path, *original_hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
     // 发送不同的内容（模拟损坏）
@@ -349,3 +368,68 @@ TEST_F(SingleFileReceiverTest, DetectCorruptedFile) {
     EXPECT_EQ(expected_hash, *original_hash);
     EXPECT_NE(actual_hash, *original_hash);
 }
+
+TEST_F(SingleFileReceiverTest, HandleDuplicateChunks) {
+    std::string relative_path = "duplicate.txt";
+    
+    // 生成3个块的内容
+    constexpr size_t kChunkSize = 1024 * 1024; // 1MB per chunk
+    constexpr size_t kNumChunks = 3;
+    std::vector<std::string> chunks;
+    std::string full_content;
+
+    for (size_t i = 0; i < kNumChunks; ++i) {
+        std::string chunk_content = GenerateContent(kChunkSize);
+        chunks.push_back(chunk_content);
+        full_content += chunk_content;
+    }
+
+    // 计算完整文件的哈希
+    const std::byte* bytes = reinterpret_cast<const std::byte*>(full_content.data());
+    ConstDataBlock block(bytes, full_content.size());
+    auto file_hash = util::hash::sha256_hex(block);
+    ASSERT_TRUE(file_hash.has_value());
+
+    // 创建接收器
+    receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
+    ASSERT_TRUE(receiver.is_valid());
+
+    // 接收所有块
+    for (size_t i = 0; i < kNumChunks; ++i) {
+        const std::byte* chunk_bytes = reinterpret_cast<const std::byte*>(chunks[i].data());
+        ConstDataBlock chunk_block(chunk_bytes, chunks[i].size());
+        auto chunk_hash = util::hash::sha256_hex(chunk_block);
+        ASSERT_TRUE(chunk_hash.has_value());
+
+        bool is_last = (i == kNumChunks - 1);
+        auto chunk_request = CreateChunk(relative_path, i, chunks[i], *chunk_hash, is_last);
+
+        bool result = receiver.handle_chunk(chunk_request);
+        EXPECT_TRUE(result) << "Failed to handle chunk " << i;
+    }
+
+    // 尝试再次接收块1（重复块）
+    {
+        size_t i = 1;
+        const std::byte* chunk_bytes = reinterpret_cast<const std::byte*>(chunks[i].data());
+        ConstDataBlock chunk_block(chunk_bytes, chunks[i].size());
+        auto chunk_hash = util::hash::sha256_hex(chunk_block);
+        ASSERT_TRUE(chunk_hash.has_value());
+
+        auto chunk_request = CreateChunk(relative_path, i, chunks[i], *chunk_hash, false);
+        bool result = receiver.handle_chunk(chunk_request);
+        EXPECT_TRUE(result) << "Should gracefully handle duplicate chunk";
+    }
+
+    // 完成并验证
+    auto [ok, expected_hash, actual_hash] = receiver.finalize_and_verify();
+    EXPECT_TRUE(ok) << "File should still be valid despite duplicate chunk";
+    EXPECT_EQ(expected_hash, *file_hash);
+    EXPECT_EQ(actual_hash, *file_hash);
+
+    // 验证文件内容
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(std::filesystem::exists(file_path));
+    EXPECT_TRUE(VerifyFile(file_path, full_content));
+}
+

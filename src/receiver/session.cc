@@ -51,7 +51,7 @@ asio::awaitable<void> Session::handle_metadata(const transfer::TransferMetadataR
     receivers.reserve(static_cast<size_t>(request.files_size()));
 
     for (const auto& f : request.files()) {
-        auto r = std::make_unique<SingleFileReceiver>(f.relative_path(), f.hash());
+        auto r = std::make_unique<SingleFileReceiver>(f.relative_path(), f.hash(), f.size());
         if (!r->is_valid()) {
             spdlog::error("[receiver::Session] Failed to prepare receiver for {}",
                           f.relative_path());

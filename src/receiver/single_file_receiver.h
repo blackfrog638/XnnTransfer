@@ -5,12 +5,15 @@
 #include <fstream>
 #include <string>
 #include <tuple>
+#include <unordered_set>
 
 namespace receiver {
 
 class SingleFileReceiver {
   public:
-    SingleFileReceiver(std::string relative_path, std::string expected_file_hash);
+    SingleFileReceiver(std::string relative_path,
+                       std::string expected_file_hash,
+                       std::uint64_t file_size = 0);
 
     bool is_valid() const { return valid_; }
     const std::string& relative_path() const { return rel_path_; }
@@ -22,10 +25,13 @@ class SingleFileReceiver {
   private:
     std::string rel_path_;
     std::filesystem::path dest_path_;
-    std::ofstream ofs_;
-    std::size_t next_chunk_index_ = 0;
+    std::fstream fs_;
+    std::unordered_set<std::uint64_t> received_chunks_;
+    std::uint64_t expected_total_chunks_ = 0;
+    std::uint64_t file_size_ = 0;
     std::string expected_hash_;
     bool valid_ = false;
+    bool last_chunk_received_ = false;
 };
 
 } // namespace receiver

@@ -31,7 +31,7 @@ asio::awaitable<void> SingleFileSender::send_file() {
     uint64_t bytes_sent = 0;
 
     while (file && bytes_sent < size_) {
-        file.read(reinterpret_cast<char*>(buffer.data()), kDefaultBufferSize);
+        file.read(reinterpret_cast<char*>(buffer.data()), kDefaultChunkSize);
         const auto bytes_read = static_cast<std::size_t>(file.gcount());
 
         if (bytes_read > 0) {
