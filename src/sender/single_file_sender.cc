@@ -1,6 +1,7 @@
 #pragma once
 #include "single_file_sender.h"
 #include "util/data_block.h"
+#include "util/hash.h"
 #include <fstream>
 #include <spdlog/spdlog.h>
 
@@ -38,7 +39,8 @@ asio::awaitable<void> SingleFileSender::send_file() {
             chunk_request.set_file_relative_path(relative_path_);
             chunk_request.set_chunk_index(chunk_index);
             chunk_request.set_data(buffer.data(), bytes_read);
-            chunk_request.set_hash(hash_);
+            auto chunk_hash = util::hash::sha256_hex(ConstDataBlock(buffer.data(), bytes_read));
+            chunk_request.set_hash(chunk_hash ? *chunk_hash : std::string());
 
             bytes_sent += bytes_read;
             chunk_request.set_is_last_chunk(bytes_sent >= size_);

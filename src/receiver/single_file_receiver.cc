@@ -8,26 +8,21 @@ namespace receiver {
 SingleFileReceiver::SingleFileReceiver(std::string relative_path, std::string expected_file_hash)
     : rel_path_(std::move(relative_path))
     , expected_hash_(std::move(expected_file_hash)) {
-    try {
-        // store under ./received/<relative_path>
-        dest_path_ = std::filesystem::current_path() / "received" / rel_path_;
-        auto parent = dest_path_.parent_path();
-        if (!parent.empty() && !std::filesystem::exists(parent)) {
-            std::filesystem::create_directories(parent);
-        }
-
-        ofs_.open(dest_path_, std::ios::binary | std::ios::trunc);
-        if (!ofs_.is_open()) {
-            spdlog::error("[SingleFileReceiver] Failed to open {} for writing", dest_path_.string());
-            valid_ = false;
-            return;
-        }
-
-        valid_ = true;
-    } catch (const std::exception& e) {
-        spdlog::error("[SingleFileReceiver] Exception preparing file {}: {}", rel_path_, e.what());
-        valid_ = false;
+    // store under ./received/<relative_path>
+    dest_path_ = std::filesystem::current_path() / "received" / rel_path_;
+    auto parent = dest_path_.parent_path();
+    if (!parent.empty() && !std::filesystem::exists(parent)) {
+        std::filesystem::create_directories(parent);
     }
+
+    ofs_.open(dest_path_, std::ios::binary | std::ios::trunc);
+    if (!ofs_.is_open()) {
+        spdlog::error("[SingleFileReceiver] Failed to open {} for writing", dest_path_.string());
+        valid_ = false;
+        return;
+    }
+
+    valid_ = true;
 }
 
 bool SingleFileReceiver::handle_chunk(const transfer::FileChunkRequest& request) {
