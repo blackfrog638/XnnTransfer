@@ -30,6 +30,22 @@ asio::awaitable<void> SingleFileSender::send_file() {
     uint64_t chunk_index = 0;
     uint64_t bytes_sent = 0;
 
+    if (size_ == 0) {
+        transfer::FileChunkRequest chunk_request;
+        chunk_request.set_file_relative_path(relative_path_);
+        chunk_request.set_chunk_index(0);
+        chunk_request.set_data("", 0);
+        chunk_request.set_hash("");
+        chunk_request.set_is_last_chunk(true);
+
+        co_await session_.send(chunk_request);
+
+        spdlog::info("[SingleFileSender::send_file] File sent successfully: {}, {} chunks",
+                     file_path_.string(),
+                     0);
+        co_return;
+    }
+
     while (file && bytes_sent < size_) {
         file.read(reinterpret_cast<char*>(buffer.data()), kDefaultChunkSize);
         const auto bytes_read = static_cast<std::size_t>(file.gcount());

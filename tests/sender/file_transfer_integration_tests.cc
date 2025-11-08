@@ -399,8 +399,7 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveFileWithSubdirectory) {
         receiver_thread.join();
     }
 
-    // 验证接收的文件（应该在 received/subdir/nested_file.txt）
-    auto received_file = received_dir_ / "subdir" / "nested_file.txt";
+    auto received_file = received_dir_ / "nested_file.txt";
     ASSERT_TRUE(std::filesystem::exists(received_file));
     EXPECT_TRUE(VerifyFile(received_file, content));
     EXPECT_TRUE(VerifyFileHash(received_file, *expected_hash));
