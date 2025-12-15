@@ -17,9 +17,12 @@ class Session {
     ~Session() = default;
 
     virtual asio::awaitable<void> start();
+    
+    bool is_running() const { return running_.load(); }
+    void stop() { running_.store(false); }
 
     template<typename ProtobufType>
-    asio::awaitable<void> send(ProtobufType& message) {
+    asio::awaitable<void> send(ProtobufType message) {
         MessageWrapper wrapper;
         wrapper.set_type(ProtobufType::descriptor()->full_name());
 

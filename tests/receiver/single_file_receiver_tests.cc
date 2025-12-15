@@ -79,6 +79,10 @@ TEST_F(SingleFileReceiverTest, ReceiveSmallFileInSingleChunk) {
     receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
+    // 准备存储
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(receiver.prepare_storage(file_path));
+
     // 创建并处理块
     auto chunk = CreateChunk(relative_path, 0, content, *hash, true);
     bool result = receiver.handle_chunk(chunk);
@@ -91,7 +95,6 @@ TEST_F(SingleFileReceiverTest, ReceiveSmallFileInSingleChunk) {
     EXPECT_EQ(actual_hash, *hash);
 
     // 验证文件内容
-    auto file_path = received_dir_ / relative_path;
     ASSERT_TRUE(std::filesystem::exists(file_path));
     EXPECT_TRUE(VerifyFile(file_path, content));
 }
@@ -120,6 +123,9 @@ TEST_F(SingleFileReceiverTest, ReceiveLargeFileInMultipleChunks) {
     // 创建接收器，传递文件大小
     receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
     ASSERT_TRUE(receiver.is_valid());
+
+    // 准备存储
+    ASSERT_TRUE(receiver.prepare_storage(received_dir_ / relative_path));
 
     // 依次处理每个块
     for (size_t i = 0; i < kNumChunks; ++i) {
@@ -162,6 +168,10 @@ TEST_F(SingleFileReceiverTest, ReceiveFileWithSubdirectory) {
     receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
 
+    // 准备存储
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(receiver.prepare_storage(file_path));
+
     // 创建并处理块
     auto chunk = CreateChunk(relative_path, 0, content, *hash, true);
     bool result = receiver.handle_chunk(chunk);
@@ -172,7 +182,6 @@ TEST_F(SingleFileReceiverTest, ReceiveFileWithSubdirectory) {
     EXPECT_TRUE(ok);
 
     // 验证文件和目录结构
-    auto file_path = received_dir_ / relative_path;
     ASSERT_TRUE(std::filesystem::exists(file_path));
     EXPECT_TRUE(std::filesystem::is_regular_file(file_path));
     EXPECT_TRUE(VerifyFile(file_path, content));
@@ -180,7 +189,7 @@ TEST_F(SingleFileReceiverTest, ReceiveFileWithSubdirectory) {
 
 TEST_F(SingleFileReceiverTest, ReceiveEmptyFile) {
     std::string relative_path = "empty.txt";
-    std::string content = "";
+    std::string content;
 
     // 计算空内容的哈希
     const std::byte* bytes = reinterpret_cast<const std::byte*>(content.data());
@@ -191,6 +200,10 @@ TEST_F(SingleFileReceiverTest, ReceiveEmptyFile) {
     // 创建接收器，传递文件大小
     receiver::SingleFileReceiver receiver(relative_path, *hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
+
+    // 准备存储
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(receiver.prepare_storage(file_path));
 
     // 创建并处理空块
     auto chunk = CreateChunk(relative_path, 0, content, *hash, true);
@@ -204,14 +217,13 @@ TEST_F(SingleFileReceiverTest, ReceiveEmptyFile) {
     EXPECT_EQ(actual_hash, *hash);
 
     // 验证空文件
-    auto file_path = received_dir_ / relative_path;
     ASSERT_TRUE(std::filesystem::exists(file_path));
     EXPECT_EQ(std::filesystem::file_size(file_path), 0);
 }
 
 TEST_F(SingleFileReceiverTest, ReceiveChunksOutOfOrder) {
     std::string relative_path = "out_of_order.txt";
-    
+
     // 生成3个块的内容
     constexpr size_t kChunkSize = 1024 * 1024; // 1MB per chunk
     constexpr size_t kNumChunks = 3;
@@ -234,9 +246,12 @@ TEST_F(SingleFileReceiverTest, ReceiveChunksOutOfOrder) {
     receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
     ASSERT_TRUE(receiver.is_valid());
 
+    // 准备存储
+    ASSERT_TRUE(receiver.prepare_storage(received_dir_ / relative_path));
+
     // 乱序接收：先接收块2，然后块0，最后块1（标记为最后一块）
     std::vector<size_t> receive_order = {2, 0, 1};
-    
+
     for (size_t idx = 0; idx < receive_order.size(); ++idx) {
         size_t i = receive_order[idx];
         const std::byte* chunk_bytes = reinterpret_cast<const std::byte*>(chunks[i].data());
@@ -294,6 +309,10 @@ TEST_F(SingleFileReceiverTest, HandleChunkWithoutHash) {
     receiver::SingleFileReceiver receiver(relative_path, "", content.size());
     ASSERT_TRUE(receiver.is_valid());
 
+    // 准备存储
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(receiver.prepare_storage(file_path));
+
     // 创建块（不提供哈希）
     auto chunk = CreateChunk(relative_path, 0, content, "", true);
 
@@ -306,7 +325,6 @@ TEST_F(SingleFileReceiverTest, HandleChunkWithoutHash) {
     EXPECT_TRUE(ok);
 
     // 验证文件内容
-    auto file_path = received_dir_ / relative_path;
     ASSERT_TRUE(std::filesystem::exists(file_path));
     EXPECT_TRUE(VerifyFile(file_path, content));
 }
@@ -324,6 +342,10 @@ TEST_F(SingleFileReceiverTest, VerifyFinalFileHash) {
     // 创建接收器，传递文件大小
     receiver::SingleFileReceiver receiver(relative_path, *expected_file_hash, content.size());
     ASSERT_TRUE(receiver.is_valid());
+
+    // 准备存储
+    auto file_path = received_dir_ / relative_path;
+    ASSERT_TRUE(receiver.prepare_storage(file_path));
 
     // 处理块（使用块哈希）
     auto chunk_hash = util::hash::sha256_hex(block);
@@ -371,7 +393,7 @@ TEST_F(SingleFileReceiverTest, DetectCorruptedFile) {
 
 TEST_F(SingleFileReceiverTest, HandleDuplicateChunks) {
     std::string relative_path = "duplicate.txt";
-    
+
     // 生成3个块的内容
     constexpr size_t kChunkSize = 1024 * 1024; // 1MB per chunk
     constexpr size_t kNumChunks = 3;
@@ -393,6 +415,9 @@ TEST_F(SingleFileReceiverTest, HandleDuplicateChunks) {
     // 创建接收器
     receiver::SingleFileReceiver receiver(relative_path, *file_hash, full_content.size());
     ASSERT_TRUE(receiver.is_valid());
+
+    // 准备存储
+    ASSERT_TRUE(receiver.prepare_storage(received_dir_ / relative_path));
 
     // 接收所有块
     for (size_t i = 0; i < kNumChunks; ++i) {
@@ -432,4 +457,3 @@ TEST_F(SingleFileReceiverTest, HandleDuplicateChunks) {
     ASSERT_TRUE(std::filesystem::exists(file_path));
     EXPECT_TRUE(VerifyFile(file_path, full_content));
 }
-

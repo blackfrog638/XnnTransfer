@@ -116,7 +116,9 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveSmallFile) {
     constexpr uint16_t port = 15000;
 
     // 启动接收方
-    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor, port);
+    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor,
+                                                                port,
+                                                                received_dir_.string());
 
     // 等待接收方启动
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -153,6 +155,13 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveSmallFile) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // 等待接收方会话也完成
+    start = std::chrono::steady_clock::now();
+    while (receiver_session->is_running()
+           && std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     // 停止 executor
     sender_executor.stop();
     receiver_executor.stop();
@@ -163,6 +172,10 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveSmallFile) {
     if (receiver_thread.joinable()) {
         receiver_thread.join();
     }
+
+    // 析构会话对象
+    sender_session.reset();
+    receiver_session.reset();
 
     // 验证接收的文件
     auto received_file = received_dir_ / "small_test.txt";
@@ -188,7 +201,9 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveLargeFile) {
     constexpr uint16_t port = 15001;
 
     // 启动接收方
-    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor, port);
+    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor,
+                                                                port,
+                                                                received_dir_.string());
 
     // 等待接收方启动
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -224,6 +239,13 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveLargeFile) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // 等待接收方会话也完成
+    start = std::chrono::steady_clock::now();
+    while (receiver_session->is_running()
+           && std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     // 停止 executor
     sender_executor.stop();
     receiver_executor.stop();
@@ -234,6 +256,10 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveLargeFile) {
     if (receiver_thread.joinable()) {
         receiver_thread.join();
     }
+
+    // 析构会话对象
+    sender_session.reset();
+    receiver_session.reset();
 
     // 验证接收的文件
     auto received_file = received_dir_ / "large_test.bin";
@@ -268,7 +294,9 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveMultipleFiles) {
     constexpr uint16_t port = 15002;
 
     // 启动接收方
-    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor, port);
+    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor,
+                                                                port,
+                                                                received_dir_.string());
 
     // 等待接收方启动
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -306,6 +334,13 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveMultipleFiles) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // 等待接收方会话也完成
+    start = std::chrono::steady_clock::now();
+    while (receiver_session->is_running()
+           && std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     // 停止 executor
     sender_executor.stop();
     receiver_executor.stop();
@@ -316,6 +351,10 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveMultipleFiles) {
     if (receiver_thread.joinable()) {
         receiver_thread.join();
     }
+
+    // 析构会话对象
+    sender_session.reset();
+    receiver_session.reset();
 
     // 验证所有接收的文件
     for (size_t i = 0; i < test_files.size(); ++i) {
@@ -352,7 +391,9 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveFileWithSubdirectory) {
     constexpr uint16_t port = 15003;
 
     // 启动接收方
-    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor, port);
+    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor,
+                                                                port,
+                                                                received_dir_.string());
 
     // 等待接收方启动
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -388,6 +429,13 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveFileWithSubdirectory) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // 等待接收方会话也完成
+    start = std::chrono::steady_clock::now();
+    while (receiver_session->is_running()
+           && std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     // 停止 executor
     sender_executor.stop();
     receiver_executor.stop();
@@ -398,6 +446,10 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveFileWithSubdirectory) {
     if (receiver_thread.joinable()) {
         receiver_thread.join();
     }
+
+    // 析构会话对象
+    sender_session.reset();
+    receiver_session.reset();
 
     auto received_file = received_dir_ / "nested_file.txt";
     ASSERT_TRUE(std::filesystem::exists(received_file));
@@ -421,7 +473,9 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveEmptyFile) {
     constexpr uint16_t port = 15004;
 
     // 启动接收方
-    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor, port);
+    auto receiver_session = std::make_unique<receiver::Session>(receiver_executor,
+                                                                port,
+                                                                received_dir_.string());
 
     // 等待接收方启动
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -457,6 +511,13 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveEmptyFile) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // 等待接收方会话也完成
+    start = std::chrono::steady_clock::now();
+    while (receiver_session->is_running()
+           && std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     // 停止 executor
     sender_executor.stop();
     receiver_executor.stop();
@@ -467,6 +528,10 @@ TEST_F(FileTransferIntegrationTest, SendAndReceiveEmptyFile) {
     if (receiver_thread.joinable()) {
         receiver_thread.join();
     }
+
+    // 析构会话对象
+    sender_session.reset();
+    receiver_session.reset();
 
     // 验证接收的空文件
     auto received_file = received_dir_ / "empty_file.txt";

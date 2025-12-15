@@ -1,9 +1,20 @@
 #include "single_file_receiver.h"
 #include "util/data_block.h"
 #include "util/hash.h"
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
 namespace receiver {
+
+namespace {
+template<typename Message>
+bool GetLastChunkFlag(const Message& message) {
+    if constexpr (requires(const Message& msg) { msg.is_last_chunk(); }) {
+        return message.is_last_chunk();
+    }
+    return false;
+}
+} // namespace
 
 SingleFileReceiver::SingleFileReceiver(std::string relative_path,
                                        std::string expected_file_hash,
@@ -11,150 +22,201 @@ SingleFileReceiver::SingleFileReceiver(std::string relative_path,
     : rel_path_(std::move(relative_path))
     , expected_hash_(std::move(expected_file_hash))
     , file_size_(file_size) {
-    // store under ./received/<relative_path>
-    dest_path_ = std::filesystem::current_path() / "received" / rel_path_;
-    auto parent = dest_path_.parent_path();
-    if (!parent.empty() && !std::filesystem::exists(parent)) {
-        std::filesystem::create_directories(parent);
-    }
-
-    fs_.open(dest_path_, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
-    if (!fs_.is_open()) {
-        spdlog::error("[SingleFileReceiver] Failed to open {} for writing", dest_path_.string());
-        valid_ = false;
-        return;
-    }
-    if (file_size_ > 0) {
-        fs_.seekp(static_cast<std::streamoff>(file_size_ - 1));
-        fs_.put(0);
-        fs_.seekp(0);
-        expected_total_chunks_ = (file_size_ + kDefaultChunkSize - 1) / kDefaultChunkSize;
-        spdlog::debug("[SingleFileReceiver] Preallocated {} bytes, expecting {} chunks",
-                      file_size_,
-                      expected_total_chunks_);
-    }
-
-    valid_ = true;
+    expected_total_chunks_ = file_size_ == 0
+                                 ? 1
+                                 : (file_size_ + kDefaultChunkSize - 1) / kDefaultChunkSize;
+    chunks_.resize(static_cast<std::size_t>(expected_total_chunks_));
 }
 
-bool SingleFileReceiver::handle_chunk(const transfer::FileChunkRequest& request) {
-    if (!valid_)
-        return false;
+bool SingleFileReceiver::prepare_storage(const std::filesystem::path& dest_path) {
+    dest_path_ = dest_path;
 
-    std::uint64_t chunk_index = request.chunk_index();
-
-    if (received_chunks_.count(chunk_index) > 0) {
-        spdlog::warn("[SingleFileReceiver] Duplicate chunk {} for {}, ignoring",
-                     chunk_index,
-                     rel_path_);
-        return true;
-    }
-
-    const std::string& data = request.data();
-    const std::byte* bytes = reinterpret_cast<const std::byte*>(data.data());
-    ConstDataBlock block(bytes, data.size());
-
-    if (!request.hash().empty()) {
-        auto hex = util::hash::sha256_hex(block);
-        if (!hex.has_value() || *hex != request.hash()) {
+    std::error_code ec;
+    const auto parent = dest_path_.parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
             spdlog::error(
-                "[SingleFileReceiver] Chunk hash mismatch for {} chunk {}: expected {}, got {}",
-                rel_path_,
-                chunk_index,
-                request.hash(),
-                hex ? *hex : std::string("(none)"));
+                "[SingleFileReceiver::prepare_storage] Failed to create directories for {}: {}",
+                dest_path_.string(),
+                ec.message());
             return false;
         }
     }
 
-    std::uint64_t offset = chunk_index * kDefaultChunkSize;
+    fs_.open(dest_path_, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
+    if (!fs_.is_open()) {
+        spdlog::error("[SingleFileReceiver::prepare_storage] Failed to open file: {}",
+                      dest_path_.string());
+        return false;
+    }
 
-    fs_.seekp(static_cast<std::streamoff>(offset));
+    storage_prepared_ = true;
+    bytes_received_ = 0;
+    completed_chunks_ = 0;
+    last_chunk_received_ = false;
+    finalized_ = false;
+    std::fill(chunks_.begin(), chunks_.end(), ChunkInfo{});
+    return true;
+}
+
+bool SingleFileReceiver::is_complete() const {
+    if (finalized_) {
+        return true;
+    }
+
+    const bool chunks_received = expected_total_chunks_ > 0
+                                 && completed_chunks_ >= expected_total_chunks_;
+    const bool bytes_matched = file_size_ == 0 ? completed_chunks_ > 0
+                                               : bytes_received_ >= file_size_;
+    
+    spdlog::debug("[SingleFileReceiver::is_complete] {} - completed_chunks_={}, expected_total_chunks_={}, "
+                  "bytes_received_={}, file_size_={}, last_chunk_received_={}, chunks_received={}, bytes_matched={}",
+                  rel_path_, completed_chunks_, expected_total_chunks_, bytes_received_, file_size_, 
+                  last_chunk_received_, chunks_received, bytes_matched);
+    
+    if (file_size_ == 0) {
+        return chunks_received || last_chunk_received_;
+    }
+
+    return chunks_received && (bytes_matched || last_chunk_received_);
+}
+
+bool SingleFileReceiver::handle_chunk(const transfer::FileChunkRequest& request) {
+    if (request.file_relative_path() != rel_path_) {
+        spdlog::warn(
+            "[SingleFileReceiver::handle_chunk] Mismatched relative path: {} (expected {})",
+            request.file_relative_path(),
+            rel_path_);
+        return false;
+    }
+
+    if (!storage_prepared_) {
+        if (dest_path_.empty()) {
+            dest_path_ = std::filesystem::path(rel_path_);
+        }
+
+        if (!prepare_storage(dest_path_)) {
+            return false;
+        }
+    } else if (!fs_.is_open()) {
+        fs_.open(dest_path_, std::ios::binary | std::ios::in | std::ios::out);
+        if (!fs_.is_open()) {
+            spdlog::error("[SingleFileReceiver::handle_chunk] Failed to reopen file: {}",
+                          dest_path_.string());
+            return false;
+        }
+    }
+
+    const std::uint64_t chunk_index = request.chunk_index();
+    if (chunk_index >= chunks_.size()) {
+        chunks_.resize(static_cast<std::size_t>(chunk_index + 1));
+        expected_total_chunks_ = chunks_.size();
+    }
+
+    auto& chunk_info = chunks_[static_cast<std::size_t>(chunk_index)];
+    if (chunk_info.status == ChunkInfo::Status::Completed) {
+        return true;
+    }
+
+    const auto& data = request.data();
+    const bool is_last_chunk = GetLastChunkFlag(request);
+    ConstDataBlock data_block(reinterpret_cast<const std::byte*>(data.data()), data.size());
+
+    spdlog::debug("[SingleFileReceiver::handle_chunk] {} chunk {} - size={}, is_last={}", 
+                  rel_path_, chunk_index, data.size(), is_last_chunk);
+
+    if (!request.hash().empty()) {
+        auto computed_hash = util::hash::sha256_hex(data_block);
+        if (!computed_hash || *computed_hash != request.hash()) {
+            chunk_info.status = ChunkInfo::Status::Failed;
+            spdlog::warn("[SingleFileReceiver::handle_chunk] Hash mismatch for {} chunk {}",
+                         rel_path_,
+                         chunk_index);
+            return false;
+        }
+        chunk_info.hash = *computed_hash;
+    } else {
+        chunk_info.hash.clear();
+    }
+
+    const std::uint64_t offset = chunk_index * kDefaultChunkSize;
+    fs_.clear();
+    fs_.seekp(static_cast<std::streamoff>(offset), std::ios::beg);
     if (!fs_) {
-        spdlog::error("[SingleFileReceiver] Failed to seek to position {} for chunk {} in {}",
+        spdlog::error("[SingleFileReceiver::handle_chunk] Failed to seek to offset {} in {}",
                       offset,
-                      chunk_index,
-                      rel_path_);
+                      dest_path_.string());
         return false;
     }
 
-    fs_.write(reinterpret_cast<const char*>(bytes), static_cast<std::streamsize>(data.size()));
-    if (!fs_) {
-        spdlog::error("[SingleFileReceiver] Failed to write chunk {} for {}",
-                      chunk_index,
-                      rel_path_);
-        return false;
+    if (!data.empty()) {
+        fs_.write(data.data(), static_cast<std::streamsize>(data.size()));
+        if (!fs_) {
+            spdlog::error("[SingleFileReceiver::handle_chunk] Failed to write chunk {} for file {}",
+                          chunk_index,
+                          dest_path_.string());
+            return false;
+        }
     }
 
-    received_chunks_.insert(chunk_index);
+    fs_.flush();
 
-    spdlog::debug("[SingleFileReceiver] Received chunk {} for {} at offset {} ({} bytes) [{}/{}]",
-                  chunk_index,
-                  rel_path_,
-                  offset,
-                  data.size(),
-                  received_chunks_.size(),
-                  expected_total_chunks_);
+    chunk_info.offset = offset;
+    chunk_info.size = static_cast<std::uint32_t>(data.size());
+    chunk_info.is_last = is_last_chunk;
+    chunk_info.status = ChunkInfo::Status::Completed;
 
-    if (request.is_last_chunk()) {
-        last_chunk_received_ = true;
+    bytes_received_ += static_cast<std::uint64_t>(data.size());
+    last_chunk_received_ = last_chunk_received_ || is_last_chunk;
+    ++completed_chunks_;
+
+    if (is_last_chunk && expected_total_chunks_ < chunk_index + 1) {
         expected_total_chunks_ = chunk_index + 1;
-        spdlog::info("[SingleFileReceiver] Last chunk {} received for {}, total chunks: {}",
-                     chunk_index,
-                     rel_path_,
-                     expected_total_chunks_);
     }
 
     return true;
 }
 
 std::tuple<bool, std::string, std::string> SingleFileReceiver::finalize_and_verify() {
-    if (!last_chunk_received_) {
-        spdlog::warn("[SingleFileReceiver] Last chunk not received for {}", rel_path_);
-        if (fs_.is_open()) {
-            fs_.close();
-        }
-        return {false, expected_hash_, std::string()};
-    }
-    if (expected_total_chunks_ > 0 && received_chunks_.size() != expected_total_chunks_) {
-        spdlog::error("[SingleFileReceiver] Missing chunks for {}: received {}/{} chunks",
-                      rel_path_,
-                      received_chunks_.size(),
-                      expected_total_chunks_);
-
-        for (std::uint64_t i = 0; i < expected_total_chunks_; ++i) {
-            if (received_chunks_.count(i) == 0) {
-                spdlog::error("[SingleFileReceiver] Missing chunk {} for {}", i, rel_path_);
-            }
-        }
-
-        if (fs_.is_open()) {
-            fs_.close();
-        }
-        return {false, expected_hash_, std::string()};
-    }
-
     if (fs_.is_open()) {
         fs_.flush();
         fs_.close();
     }
 
-    std::optional<std::string> actual = util::hash::sha256_file_hex(dest_path_);
-    std::string act = actual ? *actual : std::string();
-    bool ok = true;
-    if (!expected_hash_.empty()) {
-        ok = (actual.has_value() && *actual == expected_hash_);
-        if (ok) {
-            spdlog::info("[SingleFileReceiver] File {} verified successfully", rel_path_);
-        } else {
-            spdlog::error("[SingleFileReceiver] Hash mismatch for {}: expected {}, got {}",
-                          rel_path_,
-                          expected_hash_,
-                          act);
+    finalized_ = true;
+
+    auto actual_hash_opt = util::hash::sha256_file_hex(dest_path_);
+    std::string actual_hash = actual_hash_opt.value_or(std::string());
+
+    bool chunk_count_ok = expected_total_chunks_ == 0
+                          || completed_chunks_ >= expected_total_chunks_;
+    if (file_size_ != 0 && bytes_received_ < file_size_) {
+        chunk_count_ok = false;
+    }
+
+    const bool hash_ok = expected_hash_.empty()
+                         || (actual_hash_opt && actual_hash == expected_hash_);
+    const bool success = chunk_count_ok && hash_ok;
+
+    if (!success) {
+        if (!chunk_count_ok) {
+            spdlog::warn(
+                "[SingleFileReceiver::finalize_and_verify] Incomplete file {} (chunks: {}/{})",
+                rel_path_,
+                completed_chunks_,
+                expected_total_chunks_);
+        }
+        if (!hash_ok) {
+            spdlog::warn("[SingleFileReceiver::finalize_and_verify] Hash mismatch for {} (expected "
+                         "{}, actual {})",
+                         rel_path_,
+                         expected_hash_,
+                         actual_hash);
         }
     }
 
-    return {ok, expected_hash_, act};
+    return {success, expected_hash_, actual_hash};
 }
 
 } // namespace receiver

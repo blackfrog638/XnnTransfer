@@ -2,6 +2,7 @@
 #include "core/net/io/tcp_interactor.h"
 #include "sender/single_file_sender.h"
 #include "transfer.pb.h"
+#include "util/data_block.h"
 #include "util/hash.h"
 #include <asio/ip/tcp.hpp>
 #include <atomic>
@@ -13,6 +14,26 @@
 #include <thread>
 #include <vector>
 
+namespace {
+
+ConstDataBlock MakeBlock(const std::string& data) {
+    return {reinterpret_cast<const std::byte*>(data.data()), data.size()};
+}
+
+template<typename Message>
+bool GetLastChunkFlag(const Message& message) {
+    if constexpr (requires(const Message& msg) { msg.is_last_chunk(); }) {
+        return message.is_last_chunk();
+    }
+    return false;
+}
+
+std::string ComputeChunkHashHex(const std::string& data) {
+    auto hash_opt = util::hash::sha256_hex(MakeBlock(data));
+    return hash_opt.value_or(std::string());
+}
+
+} // namespace
 
 // 测试用的接收会话，用于捕获发送的块
 class TestReceiverSession {
@@ -36,7 +57,7 @@ class TestReceiverSession {
             auto chunk_opt = co_await interactor_.receive_message<transfer::FileChunkRequest>();
             if (chunk_opt.has_value()) {
                 received_chunks.push_back(*chunk_opt);
-                if (chunk_opt->is_last_chunk()) {
+                if (GetLastChunkFlag(*chunk_opt)) {
                     done.store(true);
                 }
             }
@@ -160,8 +181,8 @@ TEST_F(SingleFileSenderTest, SendSmallFile) {
     EXPECT_EQ(chunk.file_relative_path(), file_path.string());
     EXPECT_EQ(chunk.chunk_index(), 0);
     EXPECT_EQ(chunk.data(), content);
-    EXPECT_EQ(chunk.hash(), *hash);
-    EXPECT_TRUE(chunk.is_last_chunk());
+    EXPECT_EQ(chunk.hash(), ComputeChunkHashHex(chunk.data()));
+    EXPECT_TRUE(GetLastChunkFlag(chunk));
 }
 
 TEST_F(SingleFileSenderTest, SendLargeFileInChunks) {
@@ -235,13 +256,13 @@ TEST_F(SingleFileSenderTest, SendLargeFileInChunks) {
         const auto& chunk = test_receiver->received_chunks[i];
         EXPECT_EQ(chunk.file_relative_path(), file_path.string());
         EXPECT_EQ(chunk.chunk_index(), i);
-        EXPECT_EQ(chunk.hash(), *hash);
+        EXPECT_EQ(chunk.hash(), ComputeChunkHashHex(chunk.data()));
 
         total_data_size += chunk.data().size();
 
         // 只有最后一个块应该标记为 is_last_chunk
         if (i == test_receiver->received_chunks.size() - 1) {
-            EXPECT_TRUE(chunk.is_last_chunk());
+            EXPECT_TRUE(GetLastChunkFlag(chunk));
         }
     }
 

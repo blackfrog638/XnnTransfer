@@ -29,7 +29,7 @@ asio::awaitable<void> Session::receive_loop() {
         if (!message_opt.has_value()) {
             continue;
         }
-        co_await handle_message(message_opt.value());
+        executor_.spawn(handle_message(message_opt.value()));
     }
 }
 } //namespace core::net::io

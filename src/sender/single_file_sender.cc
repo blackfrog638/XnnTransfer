@@ -7,6 +7,18 @@
 
 namespace sender {
 
+namespace {
+template<typename Message>
+void SetLastChunkFlag(Message& message, bool value) {
+    if constexpr (requires(Message& msg) { msg.set_is_last_chunk(true); }) {
+        message.set_is_last_chunk(value);
+    } else {
+        (void) message;
+        (void) value;
+    }
+}
+} // namespace
+
 SingleFileSender::SingleFileSender(core::Executor& executor,
                                    core::net::io::Session& session,
                                    transfer::FileInfoRequest& file,
@@ -27,6 +39,11 @@ asio::awaitable<void> SingleFileSender::send_file() {
 
     std::vector<std::byte> buffer(kDefaultBufferSize);
 
+    if (total_chunks_ == 0) {
+        total_chunks_ = size_ == 0 ? 1 : (size_ + kDefaultChunkSize - 1) / kDefaultChunkSize;
+        chunks_.reserve(static_cast<std::size_t>(total_chunks_));
+    }
+
     uint64_t chunk_index = 0;
     uint64_t bytes_sent = 0;
 
@@ -35,14 +52,21 @@ asio::awaitable<void> SingleFileSender::send_file() {
         chunk_request.set_file_relative_path(relative_path_);
         chunk_request.set_chunk_index(0);
         chunk_request.set_data("", 0);
-        chunk_request.set_hash("");
-        chunk_request.set_is_last_chunk(true);
+        chunk_request.set_hash(hash_);
+        SetLastChunkFlag(chunk_request, true);
 
-        co_await session_.send(chunk_request);
+        chunks_.emplace_back();
+        auto& chunk_info = chunks_.back();
+        chunk_info.offset = 0;
+        chunk_info.size = 0;
+        chunk_info.hash = hash_;
+        chunk_info.is_last = true;
+
+        executor_.spawn(session_.send(chunk_request));
 
         spdlog::info("[SingleFileSender::send_file] File sent successfully: {}, {} chunks",
                      file_path_.string(),
-                     0);
+                     1);
         co_return;
     }
 
@@ -51,17 +75,24 @@ asio::awaitable<void> SingleFileSender::send_file() {
         const auto bytes_read = static_cast<std::size_t>(file.gcount());
 
         if (bytes_read > 0) {
+            bytes_sent += bytes_read;
+
+            const bool is_last = bytes_sent >= size_;
+            auto chunk_hash = util::hash::sha256_hex(ConstDataBlock(buffer.data(), bytes_read));
+
             transfer::FileChunkRequest chunk_request;
             chunk_request.set_file_relative_path(relative_path_);
             chunk_request.set_chunk_index(chunk_index);
             chunk_request.set_data(buffer.data(), bytes_read);
-            auto chunk_hash = util::hash::sha256_hex(ConstDataBlock(buffer.data(), bytes_read));
             chunk_request.set_hash(chunk_hash ? *chunk_hash : std::string());
+            SetLastChunkFlag(chunk_request, is_last);
 
-            bytes_sent += bytes_read;
-            chunk_request.set_is_last_chunk(bytes_sent >= size_);
-
-            chunks_.emplace_back(ChunkInfo::Status::InProgress, bytes_sent - bytes_read, bytes_read);
+            chunks_.emplace_back();
+            auto& chunk_info = chunks_.back();
+            chunk_info.offset = bytes_sent - bytes_read;
+            chunk_info.size = static_cast<std::uint32_t>(bytes_read);
+            chunk_info.hash = chunk_hash ? *chunk_hash : std::string();
+            chunk_info.is_last = is_last;
 
             executor_.spawn(session_.send(chunk_request));
 
@@ -85,7 +116,7 @@ asio::awaitable<void> SingleFileSender::send_chunk(std::uint64_t chunk_index) {
         co_return;
     }
 
-    const auto& chunk = chunks_[chunk_index];
+    auto& chunk = chunks_[chunk_index];
     if (chunk.status == ChunkInfo::Status::Completed) {
         co_return;
     }
@@ -96,17 +127,27 @@ asio::awaitable<void> SingleFileSender::send_chunk(std::uint64_t chunk_index) {
         co_return;
     }
 
-    file.seekg(chunk.offset);
+    file.seekg(static_cast<std::streamoff>(chunk.offset), std::ios::beg);
     std::vector<std::byte> buffer(chunk.size);
     file.read(reinterpret_cast<char*>(buffer.data()), chunk.size);
     const auto bytes_read = static_cast<std::size_t>(file.gcount());
 
     if (bytes_read > 0) {
+        auto chunk_hash = chunk.hash;
+        if (chunk_hash.empty()) {
+            auto computed_hash = util::hash::sha256_hex(ConstDataBlock(buffer.data(), bytes_read));
+            if (computed_hash) {
+                chunk_hash = *computed_hash;
+                chunk.hash = chunk_hash;
+            }
+        }
+
         transfer::FileChunkRequest chunk_request;
         chunk_request.set_file_relative_path(relative_path_);
         chunk_request.set_chunk_index(chunk_index);
         chunk_request.set_data(buffer.data(), bytes_read);
-        chunk_request.set_hash(hash_);
+        chunk_request.set_hash(chunk_hash);
+        SetLastChunkFlag(chunk_request, chunk.is_last);
 
         executor_.spawn(session_.send(chunk_request));
     }
@@ -124,11 +165,21 @@ void SingleFileSender::update_chunk_status(std::uint64_t chunk_index, bool succe
 
     auto& chunk = chunks_[chunk_index];
     if (success) {
-        chunk.status = ChunkInfo::Status::Completed;
-        spdlog::debug(
-            "[SingleFileSender::update_chunk_status] Chunk {} of file {} marked as completed",
-            chunk_index,
-            file_path_.string());
+        if (chunk.status != ChunkInfo::Status::Completed) {
+            chunk.status = ChunkInfo::Status::Completed;
+            ++completed_chunks_;
+            spdlog::debug(
+                "[SingleFileSender::update_chunk_status] Chunk {} of file {} marked as completed",
+                chunk_index,
+                file_path_.string());
+
+            if (completed_chunks_ == total_chunks_ && total_chunks_ != 0 && !completion_announced_) {
+                completion_announced_ = true;
+                spdlog::info(
+                    "[SingleFileSender::update_chunk_status] All chunks acknowledged for file {}",
+                    file_path_.string());
+            }
+        }
     } else {
         chunk.status = ChunkInfo::Status::Failed;
         spdlog::warn("[SingleFileSender::update_chunk_status] Chunk {} of file {} marked as failed",

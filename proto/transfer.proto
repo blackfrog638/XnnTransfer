@@ -18,7 +18,7 @@ message FileInfoResponse {
     enum Status {
         SUCCESS = 0;
         SKIPPED = 1;
-        ERROR = 2;
+        FAILURE = 2;
     }
     Status status = 2;
     string message = 3;
@@ -48,7 +48,7 @@ message FileChunkResponse {
     uint64 chunk_index = 2;
     enum Status {
         RECEIVED = 0;
-        ERROR = 1;
+        FAILURE = 1;
     }
     Status status = 3;
     string message = 4;

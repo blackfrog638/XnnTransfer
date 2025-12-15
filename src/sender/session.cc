@@ -103,7 +103,7 @@ asio::awaitable<void> Session::handle_message(const MessageWrapper& message) {
             co_return;
         }
 
-        if (response.status() == transfer::TransferMetadataResponse_Status_READY) {
+        if (response.status() == transfer::TransferMetadataResponse::READY) {
             for (const auto& file_path : file_paths_) {
                 file_senders_.emplace_back(
                     std::make_unique<SingleFileSender>(executor_,
@@ -115,7 +115,11 @@ asio::awaitable<void> Session::handle_message(const MessageWrapper& message) {
             for (auto& sender : file_senders_) {
                 executor_.spawn(sender->send_file());
             }
-        } else if (response.status() == transfer::TransferMetadataResponse_Status_FAILURE) {
+        } else if (response.status() == transfer::TransferMetadataResponse::SUCCESS) {
+            spdlog::info("[Session::handle_message] Transfer completed successfully");
+            // 停止会话
+            stop();
+        } else if (response.status() == transfer::TransferMetadataResponse::FAILURE) {
             spdlog::error(
                 "[Session::handle_message] Transfer metadata response indicates failure: {}",
                 response.message());
@@ -133,10 +137,10 @@ asio::awaitable<void> Session::handle_message(const MessageWrapper& message) {
         }
 
         auto& file_path = file_paths_[*file_index];
-        if (response.status() == transfer::FileInfoResponse_Status_SUCCESS) {
+        if (response.status() == transfer::FileInfoResponse::SUCCESS) {
             spdlog::info("[Session::handle_message] File info accepted: {}",
                          response.relative_path());
-        } else if (response.status() == transfer::FileInfoResponse_Status_SKIPPED) {
+        } else if (response.status() == transfer::FileInfoResponse::SKIPPED) {
             file_path.status = FilePath::Status::Succeeded;
             spdlog::info("[Session::handle_message] File skipped: {}", response.relative_path());
         } else {
@@ -153,7 +157,7 @@ asio::awaitable<void> Session::handle_message(const MessageWrapper& message) {
 
         auto* sender = find_file_sender(response.file_relative_path());
 
-        bool success = (response.status() == transfer::FileChunkResponse_Status_RECEIVED);
+        bool success = (response.status() == transfer::FileChunkResponse::RECEIVED);
         sender->update_chunk_status(response.chunk_index(), success);
 
         if (!success) {
